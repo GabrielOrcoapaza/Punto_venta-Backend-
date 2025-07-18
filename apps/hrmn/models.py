@@ -11,9 +11,7 @@ class Employee(AbstractUser):
     charge = models.ForeignKey('Charge', on_delete=models.CASCADE, blank=True, null=True)
     subsidiary = models.ForeignKey('Subsidiary', on_delete=models.CASCADE, blank=True, null=True)
     date_birth = models.DateField(blank=True, null=True)
-    # occupation = models.CharField('Ocupacion', max_length=2, choices=occupation_choice, )
     phone = models.CharField('Telefono', max_length=100, blank=True, null=True)
-    # subsidiary = models.ForeignKey('Subsidiary', on_delete=models.CASCADE, null=True, blank=True)
     is_enabled = models.BooleanField(default=True)
     password = models.CharField(max_length=100, blank=True, null=True)
     foto = models.ImageField(upload_to='employee_photo/', default='empleoyee_photo/img_empleado.jpg', null=True,
