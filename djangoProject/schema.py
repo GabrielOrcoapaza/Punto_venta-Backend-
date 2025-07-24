@@ -1,13 +1,13 @@
 import graphene
-from .queries import EmployeeQuery
-from .mutations import Mutation as EmployeeMutation
+from .queries import Query as QueryBase
+from .mutations import Mutation as MutationBase
 
 
-class Query(EmployeeQuery, graphene.ObjectType):
+class Query(QueryBase, graphene.ObjectType):
     pass
 
 
-class Mutation(EmployeeMutation, graphene.ObjectType):
+class Mutation(MutationBase, graphene.ObjectType):
     pass
 
 

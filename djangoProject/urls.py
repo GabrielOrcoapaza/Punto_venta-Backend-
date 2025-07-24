@@ -24,7 +24,7 @@ from djangoProject.schema import schema
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path("graphql", csrf_exempt(GraphQLView.as_view(graphiql=True, schema=schema))),
+    path("graphql/", csrf_exempt(GraphQLView.as_view(graphiql=True, schema=schema))),
     path('products/', include(('apps.products.urls', 'apps.products'))),
     path('employees/', include(('apps.hrmn.urls', 'apps.hrmn'))),
     path('sales/', include(('apps.sales.urls', 'apps.sales'))),

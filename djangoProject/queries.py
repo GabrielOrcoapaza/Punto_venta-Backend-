@@ -1,21 +1,24 @@
 import graphene
-from apps.hrmn.models import Employee
-from .types import EmployeeType
-from graphql import GraphQLError
+from graphene_django import DjangoObjectType
+from django.contrib.auth.models import User
+from django.contrib.auth import get_user
+from .types import UserType
 
 
 class EmployeeQuery(graphene.ObjectType):
-    current_employee = graphene.Field(EmployeeType)
-    employees = graphene.List(EmployeeType)
+    # Mantén tus queries existentes de Employee aquí
+    pass
 
-    def resolve_current_employee(self, info):
-        employee = info.context.user
-        if not employee.is_authenticated:
-            raise GraphQLError("No autenticado")
-        return employee
 
-    def resolve_employees(self, info):
-        employee = info.context.user
-        if not employee.is_authenticated or not employee.is_staff:
-            raise GraphQLError("No autorizado")
-        return Employee.objects.filter(is_enabled=True)
+class AuthQuery(graphene.ObjectType):
+    me = graphene.Field(UserType)
+
+    def resolve_me(self, info):
+        user = info.context.user
+        if user.is_authenticated:
+            return user
+        return None
+
+
+class Query(EmployeeQuery, AuthQuery, graphene.ObjectType):
+    pass

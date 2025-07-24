@@ -1,29 +1,49 @@
 import graphene
 from graphene_django import DjangoObjectType
-from apps.hrmn.models import Employee
+from django.contrib.auth.models import User
+from django.contrib.auth import authenticate, login
+from django.contrib.auth.forms import UserCreationForm
+from django.db import transaction
 
 
-class EmployeeType(DjangoObjectType):
+class UserType(DjangoObjectType):
     class Meta:
-        model = Employee
-        fields = (
-            'id',
-            'username',
-            'name_lastname',
-            'n_document',
-            'charge',
-            'subsidiary',
-            'date_birth',
-            'phone',
-            'email',
-            'is_enabled',
-            'foto'
-        )
-        exclude = ('password', 'user_permissions', 'groups', 'is_superuser')
+        model = User
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'is_active', 'date_joined')
+        # exclude = ('password',)
 
-    foto_url = graphene.String()
 
-    def resolve_foto_url(self, info):
-        if self.foto:
-            return info.context.build_absolute_uri(self.foto.url)
-        return None
+class RegisterUserInput(graphene.InputObjectType):
+    username = graphene.String(required=True)
+    email = graphene.String(required=True)
+    password1 = graphene.String(required=True)
+    password2 = graphene.String(required=True)
+
+
+class LoginUserInput(graphene.InputObjectType):
+    username = graphene.String(required=True)
+    password = graphene.String(required=True)
+
+
+class AuthErrorType(graphene.ObjectType):
+    field = graphene.String()
+    message = graphene.String()
+
+
+class RegisterUserPayload(graphene.ObjectType):
+    user = graphene.Field(UserType)
+    token = graphene.String()
+    success = graphene.Boolean()
+    errors = graphene.List(AuthErrorType)
+
+
+class LoginUserPayload(graphene.ObjectType):
+    user = graphene.Field(UserType)
+    token = graphene.String()
+    success = graphene.Boolean()
+    errors = graphene.List(AuthErrorType)
+
+
+class LogoutUserPayload(graphene.ObjectType):
+    success = graphene.Boolean()
+    message = graphene.String()

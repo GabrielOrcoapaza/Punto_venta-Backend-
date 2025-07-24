@@ -4,7 +4,7 @@ from django.db import models
 
 
 # Create your models here.
-class Employee(AbstractUser):
+class Employee(models.Model):
     id = models.AutoField(primary_key=True)
     name_lastname = models.CharField(max_length=200, unique=True, blank=True, null=True)
     n_document = models.IntegerField(unique=True, blank=True, null=True)
