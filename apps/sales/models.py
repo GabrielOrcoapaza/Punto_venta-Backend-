@@ -10,94 +10,70 @@ from datetime import datetime
 # from apps.employees.models import Empleado
 # from django_mysql.models import EnumField
 # from django_enum import Enumfield
+from apps.hrmn.models import ClientSupplier
+from apps.products.models import Product
 
 
-class Order(models.Model):
-    STATE_CHOICES = (('A', 'ABIERTO'), ('P', 'PRECUENTA'), ('C', 'CULMINADO'), ('CI', 'CIERRE'), ('E', 'EMITIDO'),
-                     ('AN', 'ANULADO'))
-
-    TYPE_CREATION = (('W', 'WEB'), ('A', 'APP'), ('D', 'DESKTOP'))
-
-    TYPE_CHOICES = (('O', 'ORDEN'), ('B', 'BOLETA'), ('F', 'FACTURA'))
+class Sales(models.Model):
+    TYPE_RECEIPT_CHOICES = (('B', 'Boleta'), ('F', 'Factura'), ('T', 'Ticket'))
+    TYPE_PAY_CHOICES = (('E', 'Efectivo'), ('Y', 'Yape'), ('P', 'Plin'))
 
     id = models.AutoField(primary_key=True)
-    state = models.CharField(max_length=2, choices=STATE_CHOICES, default='A')
-    date_creation = models.DateTimeField(auto_now_add=True, blank=True, null=True)
+    date_creation = models.DateTimeField(blank=True, null=True)
+    date_cancel = models.DateTimeField(blank=True, null=True)
     employee_creation = models.ForeignKey('hrmn.Employee', on_delete=models.CASCADE,
                                           related_name='order_employee_create', blank=True, null=True)
-    date_cancel = models.DateTimeField(blank=True, null=True)
     employee_cancel = models.ForeignKey('hrmn.Employee', on_delete=models.CASCADE,
                                         related_name='order_employee_cancel', blank=True, null=True)
-    # state = models.CharField(max_length=9, blank=True, null=True)
-    correlative = models.IntegerField(blank=True, null=True)
+    type_receipt = models.CharField(max_length=2, choices=TYPE_RECEIPT_CHOICES, default='B')
+    type_pay = models.CharField(max_length=2, choices=TYPE_PAY_CHOICES, default='E')
+    # quantity = models.IntegerField(null=True, blank=True)
+    # price = models.IntegerField(null=True, blank=True)
+    # subtotal = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    total = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # date = models.DateTimeField(blank=True, null=True)
+    provider = models.ForeignKey(ClientSupplier, on_delete=models.CASCADE, blank=True, null=True)
     subsidiary = models.ForeignKey('hrmn.Subsidiary', on_delete=models.CASCADE, related_name='order_subsidiary',
                                    blank=True, null=True)
-    delivery_client = models.CharField(max_length=200, blank=True, null=True)
-    type_creation = models.CharField(max_length=1, choices=TYPE_CREATION, default='D')
-    type = models.CharField(max_length=1, choices=TYPE_CHOICES, default='')
-    amount = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    discount = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    pdf = models.CharField(max_length=600, null=True, blank=True)
-    xml = models.CharField(max_length=600, null=True, blank=True)
-    cdr = models.CharField(max_length=600, null=True, blank=True)
-    client = models.ForeignKey('hrmn.ClientSupplier', on_delete=models.CASCADE,
-                               related_name='order_client_supplier', blank=True, null=True)
-    reference = models.ForeignKey('self', on_delete=models.CASCADE, related_name='order_reference', blank=True,
-                                  null=True)
-    device = models.ForeignKey('Device', on_delete=models.CASCADE, related_name='order_device',
-                               blank=True, null=True)
 
     def __str__(self):
         return str(self.id)
 
-    class Meta:
-        db_table = 'Order'
 
-
-class DetailOrder(models.Model):
-    TYPE_CREATION = (('W', 'WEB'), ('A', 'APP'), ('D', 'DESKTOP'))
-    # TIPO_CREACION = [('W', 'WEB'),
-    #                  ('A', 'APP'),
-    #
-    #                  ('D', 'DESKTOP')]
+class DetailSales(models.Model):
     id = models.AutoField(primary_key=True)
-    order = models.ForeignKey('Order', on_delete=models.CASCADE, related_name='detail_order_order', default=True)
-    product = models.ForeignKey('products.Product', on_delete=models.CASCADE, related_name='detail_order_product',
-                                blank=True, null=True)
-    employee_creation = models.ForeignKey('hrmn.Employee', on_delete=models.CASCADE,
-                                          related_name='detail_order_employee_create',
-                                          blank=True, null=True)
-    date_creation = models.DateTimeField(blank=True, null=True)
-    employee_cancel = models.ForeignKey('hrmn.Employee', on_delete=models.CASCADE,
-                                        related_name='detail_order_employee_cancel',
-                                        blank=True, null=True)
-    date_cancel = models.DateTimeField(blank=True, null=True)
-    quantity_send = models.IntegerField(default=0)
-    quantity_cancel = models.IntegerField(default=0)
-    price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    sale = models.ForeignKey(Sales, on_delete=models.CASCADE, null=True, blank=True)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True, blank=True)
+    quantity = models.IntegerField(null=True, blank=True)
+    quantity_cancel = models.IntegerField(blank=True, null=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    total = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     observation = models.CharField(max_length=200, blank=True, null=True)
-    observation_cancel = models.CharField(max_length=200, blank=True, null=True)
-    print = models.BooleanField(default=True)
-    type_creation = models.CharField(max_length=1, choices=TYPE_CREATION, default='D')
-    device = models.ForeignKey('Device', on_delete=models.CASCADE, related_name='detail_order_device',
-                               blank=True, null=True)
-
-    def multiply(self):
-        if self.quantity_send > 1:
-            return self.remaining_quantity() * self.product.sale_price
-        else:
-            return self.price
-
-    def remaining_quantity(self):
-        # Calculamos el total pagado y la cantidad restante en una sola función
-        total = self.quantity_send - self.quantity_cancel
-        return total
 
     def __str__(self):
         return str(self.id)
 
-    class Meta:
-        db_table = 'DetailOrder'
+
+class Purchase(models.Model):
+    TYPE_RECEIPT_CHOICES = (('B', 'Boleta'), ('F', 'Factura'))
+    TYPE_PAY_CHOICES = (('E', 'Efectivo'), ('Y', 'Yape'), ('P', 'Plin'))
+
+    id = models.AutoField(primary_key=True)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, blank=True, null=True)
+    provider = models.ForeignKey(ClientSupplier, on_delete=models.CASCADE, blank=True, null=True)
+    quantity = models.IntegerField(null=True, blank=True)
+    price = models.IntegerField(null=True, blank=True)
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    total = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    type_receipt = models.CharField(max_length=2, choices=TYPE_RECEIPT_CHOICES, default='')
+    type_pay = models.CharField(max_length=2, choices=TYPE_PAY_CHOICES, default='E')
+
+    observation = models.TextField(max_length=500, null=True, blank=True)
+    date = models.DateTimeField(blank=True, null=True)
+
+    def __str__(self):
+        return str(self.id)
 
 
 class Cash(models.Model):
@@ -145,8 +121,8 @@ class CashFlow(models.Model):
     TYPE_PAY_CHOICES = (('E', 'EFECTIVO'), ('T', 'TARJETA'), ('Y', 'YAPE'), ('P', 'PLIN'))
     id = models.AutoField(primary_key=True)
     cash = models.ForeignKey('sales.Cash', on_delete=models.CASCADE, default=True)
-    order = models.ForeignKey('sales.Order', on_delete=models.CASCADE, null=True, blank=True)
-    detailOrder = models.ForeignKey('sales.DetailOrder', on_delete=models.CASCADE, null=True, blank=True)
+    order = models.ForeignKey('sales.Sales', on_delete=models.CASCADE, null=True, blank=True)
+    detailOrder = models.ForeignKey('sales.DetailSales', on_delete=models.CASCADE, null=True, blank=True)
     # detailPlan = models.ForeignKey('sales.Detail_Plan', on_delete=models.CASCADE, default=True)
     customer = models.CharField('Cliente', max_length=100, null=True, blank=True)
     date = models.DateTimeField('Fecha de venta', null=True, blank=True)
@@ -186,7 +162,7 @@ class Operation(models.Model):
                                  blank=True, null=True)
     client_supplier = models.ForeignKey('hrmn.ClientSupplier', on_delete=models.CASCADE,
                                         related_name='operation_employee', blank=True, null=True)
-    detail_order = models.ForeignKey('DetailOrder', on_delete=models.CASCADE, related_name='operation_detail_order',
+    detail_order = models.ForeignKey('DetailSales', on_delete=models.CASCADE, related_name='operation_detail_order',
                                      blank=True, null=True)
     warehouse = models.ForeignKey('hrmn.Warehouse', on_delete=models.CASCADE, related_name='operation_warehouse',
                                   blank=True, null=True)

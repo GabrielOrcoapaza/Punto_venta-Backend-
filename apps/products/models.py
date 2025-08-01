@@ -52,22 +52,18 @@ class Observation(models.Model):
 
 class Product(models.Model):
     id = models.AutoField(primary_key=True)
-    product = models.CharField(max_length=100)
+    code = models.IntegerField(null=True, blank=True)
+    due_date = models.DateField(null=True, blank=True)
+    name = models.CharField(max_length=100, null=True, blank=True)
+    alias = models.CharField(max_length=100, null=True, blank=True)
+    quantity = models.IntegerField(blank=True, null=True)
     sale_price = models.DecimalField(max_digits=10, decimal_places=2)
-    production_cost = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    subcategory = models.ForeignKey('SubCategory', on_delete=models.CASCADE, related_name='product_subcategory',
-                                    null=True, blank=True)
-    preparation_time = models.IntegerField(blank=True, null=True)
-    photo = models.ImageField(upload_to='dishes/', default='dishes/no-img.jpg', blank=True, null=True)
-    is_enabled = models.BooleanField(default=True)
-    # foto_thumbnail = ImageSpecField([Adjust(contrast=1.2, sharpness=1.1), ResizeToFill(
-    #     100, 100)], source='image', format='JPEG', options={'quality': 90})
+    purchase_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, )
+    laboratory = models.CharField(max_length=100, null=True, blank=True)
+    subsidiary = models.ForeignKey('hrmn.Subsidiary', on_delete=models.CASCADE, blank=True, null=True)
 
     def __str__(self):
-        return str(self.product)
-
-    class Meta:
-        db_table = 'Product'
+        return str(self.id)
 
 
 class UnitMeasure(models.Model):

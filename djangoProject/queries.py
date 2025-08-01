@@ -2,7 +2,9 @@ import graphene
 from graphene_django import DjangoObjectType
 from django.contrib.auth.models import User
 from django.contrib.auth import get_user
-from .types import UserType
+
+from apps.products.models import Product
+from .types import UserType, ProductType
 
 
 class EmployeeQuery(graphene.ObjectType):
@@ -18,6 +20,17 @@ class AuthQuery(graphene.ObjectType):
         if user.is_authenticated:
             return user
         return None
+
+
+class Query(graphene.ObjectType):
+    products = graphene.List(ProductType)
+    product = graphene.Field(ProductType, id=graphene.ID(required=True))
+
+    def resolve_products(self, info):
+        return Product.objects.all()
+
+    def resolve_product(self, info, id):
+        return Product.objects.get(pk=id)
 
 
 class Query(EmployeeQuery, AuthQuery, graphene.ObjectType):

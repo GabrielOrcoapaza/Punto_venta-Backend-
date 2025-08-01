@@ -5,6 +5,8 @@ from django.contrib.auth import authenticate, login
 from django.contrib.auth.forms import UserCreationForm
 from django.db import transaction
 
+from apps.products.models import Product
+
 
 class UserType(DjangoObjectType):
     class Meta:
@@ -47,3 +49,18 @@ class LoginUserPayload(graphene.ObjectType):
 class LogoutUserPayload(graphene.ObjectType):
     success = graphene.Boolean()
     message = graphene.String()
+
+
+class ProductType(DjangoObjectType):
+    class Meta:
+        model = Product
+        fields = '__all__'
+
+
+class CreateProductInput(graphene.InputObjectType):
+    name = graphene.String(required=True)
+    code = graphene.Int(required=True)
+    sale_price = graphene.Float(required=True)
+    laboratory = graphene.String(required=True)
+    alias = graphene.String(required=True)
+    quantity = graphene.Int(required=True)

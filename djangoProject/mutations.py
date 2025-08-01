@@ -6,10 +6,13 @@ from django.db import transaction
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
+from graphene_django.types import ErrorType
+
+from apps.products.models import Product
 from .types import (
     RegisterUserInput, LoginUserInput,
     RegisterUserPayload, LoginUserPayload, LogoutUserPayload,
-    AuthErrorType
+    AuthErrorType, CreateProductInput, ProductType
 )
 
 
@@ -132,10 +135,34 @@ class LogoutUser(graphene.Mutation):
             )
 
 
+class CreateProduct(graphene.Mutation):
+    class Arguments:
+        input = CreateProductInput(required=True)
+
+    product = graphene.Field(ProductType)
+    success = graphene.Boolean()
+    errors = graphene.List(AuthErrorType)
+
+    def mutate(self, info, input):
+        try:
+            product = Product.objects.create(
+                name=input.name,
+                code=input.code,
+                sale_price=input.sale_price,
+                laboratory=input.laboratory,
+                alias=input.alias,
+                quantity=input.quantity
+            )
+            return CreateProduct(product=product, success=True, errors=None)
+        except Exception as e:
+            return CreateProduct(product=None, success=False, errors=[AuthErrorType(message=str(e))])
+
+
 class AuthMutation(graphene.ObjectType):
     register_user = RegisterUser.Field()
     login_user = LoginUser.Field()
     logout_user = LogoutUser.Field()
+    create_product = CreateProduct.Field()
 
 
 class Mutation(EmployeeMutation, AuthMutation, graphene.ObjectType):
