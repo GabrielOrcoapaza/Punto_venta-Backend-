@@ -148,7 +148,7 @@ class CreateProduct(graphene.Mutation):
             product = Product.objects.create(
                 name=input.name,
                 code=input.code,
-                sale_price=input.sale_price,
+                price=input.price,
                 laboratory=input.laboratory,
                 alias=input.alias,
                 quantity=input.quantity

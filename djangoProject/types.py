@@ -6,6 +6,13 @@ from django.contrib.auth.forms import UserCreationForm
 from django.db import transaction
 
 from apps.products.models import Product
+from apps.hrmn.models import Subsidiary
+
+
+class SubsidiaryType(DjangoObjectType):
+    class Meta:
+        model = Subsidiary
+        fields = '__all__'
 
 
 class UserType(DjangoObjectType):
@@ -60,7 +67,11 @@ class ProductType(DjangoObjectType):
 class CreateProductInput(graphene.InputObjectType):
     name = graphene.String(required=True)
     code = graphene.Int(required=True)
-    sale_price = graphene.Float(required=True)
+    price = graphene.Decimal(required=True)
     laboratory = graphene.String(required=True)
     alias = graphene.String(required=True)
     quantity = graphene.Int(required=True)
+    # Campos opcionales
+    purchase_price = graphene.Float()
+    due_date = graphene.Date()
+    subsidiary = graphene.Int()

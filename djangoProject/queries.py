@@ -22,7 +22,7 @@ class AuthQuery(graphene.ObjectType):
         return None
 
 
-class Query(graphene.ObjectType):
+class ProductQuery(graphene.ObjectType):
     products = graphene.List(ProductType)
     product = graphene.Field(ProductType, id=graphene.ID(required=True))
 
@@ -33,5 +33,5 @@ class Query(graphene.ObjectType):
         return Product.objects.get(pk=id)
 
 
-class Query(EmployeeQuery, AuthQuery, graphene.ObjectType):
+class Query(EmployeeQuery, AuthQuery, ProductQuery, graphene.ObjectType):
     pass
