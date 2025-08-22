@@ -9,10 +9,11 @@ from django.utils.encoding import force_bytes
 from graphene_django.types import ErrorType
 
 from apps.products.models import Product
+from apps.sales.models import Purchase
 from .types import (
     RegisterUserInput, LoginUserInput,
     RegisterUserPayload, LoginUserPayload, LogoutUserPayload,
-    AuthErrorType, CreateProductInput, ProductType
+    AuthErrorType, CreateProductInput, ProductType, CreatePurchaseInput, PurchaseType
 )
 
 
@@ -158,11 +159,46 @@ class CreateProduct(graphene.Mutation):
             return CreateProduct(product=None, success=False, errors=[AuthErrorType(message=str(e))])
 
 
+class CreatePurchase(graphene.Mutation):
+    class Arguments:
+        input = CreatePurchaseInput(required=True)
+
+    purchase = graphene.Field(PurchaseType)
+    success = graphene.Boolean()
+    errors = graphene.List(AuthErrorType)
+
+    def mutate(self, info, input):
+        try:
+            try:
+                product = Product.objects.get(id=input.product_id)
+            except Product.DoesNotExist:
+                return CreatePurchase(
+                    purchase=None,
+                    success=False,
+                    errors=[AuthErrorType(message=f"Producto '{input.product_id}' no encontrado")]
+                )
+            purchase = Purchase.objects.create(
+                product=product,
+                # provider=input.provider,
+                price=input.price,
+                quantity=input.quantity,
+                subtotal=input.subtotal,
+                total=input.total,
+                typeReceipt=input.typeReceipt,
+                typePay=input.typePay,
+                date=input.date,
+            )
+            return CreatePurchase(purchase=purchase, success=True, errors=None)
+        except Exception as e:
+            return CreatePurchase(purchase=None, success=False, errors=[AuthErrorType(message=str(e))])
+
+
 class AuthMutation(graphene.ObjectType):
     register_user = RegisterUser.Field()
     login_user = LoginUser.Field()
     logout_user = LogoutUser.Field()
     create_product = CreateProduct.Field()
+    create_purchase = CreatePurchase.Field()
 
 
 class Mutation(EmployeeMutation, AuthMutation, graphene.ObjectType):

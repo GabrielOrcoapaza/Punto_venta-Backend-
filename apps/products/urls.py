@@ -4,3 +4,6 @@ from . import views
 
 from apps.products.views import *
 
+urlpatterns = [
+
+]

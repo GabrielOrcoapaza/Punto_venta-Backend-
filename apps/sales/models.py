@@ -66,8 +66,8 @@ class Purchase(models.Model):
     price = models.IntegerField(null=True, blank=True)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     total = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    type_receipt = models.CharField(max_length=2, choices=TYPE_RECEIPT_CHOICES, default='')
-    type_pay = models.CharField(max_length=2, choices=TYPE_PAY_CHOICES, default='E')
+    typeReceipt = models.CharField(max_length=2, choices=TYPE_RECEIPT_CHOICES, default='')
+    typePay = models.CharField(max_length=2, choices=TYPE_PAY_CHOICES, default='E')
 
     observation = models.TextField(max_length=500, null=True, blank=True)
     date = models.DateTimeField(blank=True, null=True)
