@@ -170,16 +170,15 @@ class CreatePurchase(graphene.Mutation):
     def mutate(self, info, input):
         try:
             try:
-                product = Product.objects.get(id=input.product_id)
+                product = Product.objects.get(id=input.productId)
             except Product.DoesNotExist:
                 return CreatePurchase(
                     purchase=None,
                     success=False,
-                    errors=[AuthErrorType(message=f"Producto '{input.product_id}' no encontrado")]
+                    errors=[AuthErrorType(message=f"Producto '{input.productId}' no encontrado")]
                 )
             purchase = Purchase.objects.create(
                 product=product,
-                # provider=input.provider,
                 price=input.price,
                 quantity=input.quantity,
                 subtotal=input.subtotal,

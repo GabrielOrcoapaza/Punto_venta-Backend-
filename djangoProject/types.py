@@ -85,12 +85,11 @@ class CreateProductInput(graphene.InputObjectType):
 
 
 class CreatePurchaseInput(graphene.InputObjectType):
-    product_id = graphene.ID(required=True)  # ✅ Mantener String
-    provider = graphene.String(required=False)  # ✅ Agregar provider
+    productId = graphene.ID(required=True)
     quantity = graphene.Int(required=True)
     price = graphene.Decimal(required=True)
     subtotal = graphene.Decimal(required=True)
     total = graphene.Decimal(required=True)
     typeReceipt = graphene.String(required=True)
     typePay = graphene.String(required=True)
-    date = graphene.Date()
+    date = graphene.DateTime()

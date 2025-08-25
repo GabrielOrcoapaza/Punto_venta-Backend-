@@ -61,15 +61,13 @@ class Purchase(models.Model):
 
     id = models.AutoField(primary_key=True)
     product = models.ForeignKey(Product, on_delete=models.CASCADE, blank=True, null=True)
-    provider = models.ForeignKey(ClientSupplier, on_delete=models.CASCADE, blank=True, null=True)
+    provider = models.ForeignKey(ClientSupplier, on_delete=models.CASCADE, blank=True, null=True, default=None)
     quantity = models.IntegerField(null=True, blank=True)
-    price = models.IntegerField(null=True, blank=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     total = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     typeReceipt = models.CharField(max_length=2, choices=TYPE_RECEIPT_CHOICES, default='')
     typePay = models.CharField(max_length=2, choices=TYPE_PAY_CHOICES, default='E')
-
-    observation = models.TextField(max_length=500, null=True, blank=True)
     date = models.DateTimeField(blank=True, null=True)
 
     def __str__(self):
