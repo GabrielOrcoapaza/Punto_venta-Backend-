@@ -109,9 +109,9 @@ class ClientSupplier(models.Model):
     address = models.CharField(max_length=200, blank=True, null=True)
     phone = models.CharField(max_length=100, blank=True, null=True)
     mail = models.CharField(max_length=100, blank=True, null=True)
-    n_document = models.IntegerField(blank=True, null=True)
-    type_document = models.CharField(max_length=1, choices=TYPE_DOCUMENT_CHOICE, default='R')
-    type_person = models.CharField(max_length=1, choices=TYPE_PERSON_CHOICE, default='E')
+    nDocument = models.IntegerField(blank=True, null=True)
+    typeDocument = models.CharField(max_length=1, choices=TYPE_DOCUMENT_CHOICE, default='R')
+    typePerson = models.CharField(max_length=1, choices=TYPE_PERSON_CHOICE, default='E')
 
     def __str__(self):
         return str(self.name)

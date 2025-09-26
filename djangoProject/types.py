@@ -6,7 +6,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.db import transaction
 
 from apps.products.models import Product
-from apps.hrmn.models import Subsidiary
+from apps.hrmn.models import Subsidiary, ClientSupplier
 from apps.sales.models import Purchase
 
 
@@ -71,6 +71,12 @@ class PurchaseType(DjangoObjectType):
         fields = '__all__'
 
 
+class ClientSupplierType(DjangoObjectType):
+    class Meta:
+        model = ClientSupplier
+        fields = '__all__'
+
+
 class CreateProductInput(graphene.InputObjectType):
     name = graphene.String(required=True)
     code = graphene.Int(required=True)
@@ -93,3 +99,14 @@ class CreatePurchaseInput(graphene.InputObjectType):
     typeReceipt = graphene.String(required=True)
     typePay = graphene.String(required=True)
     date = graphene.DateTime()
+
+
+class CreateClientSupplierInput(graphene.InputObjectType):
+    name = graphene.String(required=True)
+    address = graphene.String(required=False)
+    phone = graphene.String(required=False)
+    mail = graphene.String(required=False)
+    nDocument = graphene.Int(required=True)
+    typeDocument = graphene.String(required=True)  # 'R','D','O'
+    typePerson = graphene.String(required=True)  # 'C','E'
+

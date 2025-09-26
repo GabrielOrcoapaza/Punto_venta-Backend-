@@ -8,12 +8,14 @@ from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from graphene_django.types import ErrorType
 
+from apps.hrmn.models import ClientSupplier
 from apps.products.models import Product
 from apps.sales.models import Purchase
 from .types import (
     RegisterUserInput, LoginUserInput,
     RegisterUserPayload, LoginUserPayload, LogoutUserPayload,
-    AuthErrorType, CreateProductInput, ProductType, CreatePurchaseInput, PurchaseType
+    AuthErrorType, CreateProductInput, ProductType, CreatePurchaseInput, PurchaseType, CreateClientSupplierInput,
+    ClientSupplierType
 )
 
 
@@ -192,12 +194,37 @@ class CreatePurchase(graphene.Mutation):
             return CreatePurchase(purchase=None, success=False, errors=[AuthErrorType(message=str(e))])
 
 
+class CreateClientSupplier(graphene.Mutation):
+    class Arguments:
+        input = CreateClientSupplierInput(required=True)
+
+    clientSupplier = graphene.Field(ClientSupplierType)
+    success = graphene.Boolean()
+    errors = graphene.List(AuthErrorType)
+
+    def mutate(self, info, input):
+        try:
+            clientSupplier = ClientSupplier.objects.create(
+                name=input.name,
+                address=input.address,
+                phone=input.phone,
+                mail=input.mail,
+                nDocument=input.nDocument,
+                typeDocument=input.typeDocument,
+                typePerson=input.typePerson
+            )
+            return CreateClientSupplier(clientSupplier=clientSupplier, success=True, errors=None)
+        except Exception as e:
+            return CreateClientSupplier(clientSupplier=None, success=False, errors=[AuthErrorType(message=str(e))])
+
+
 class AuthMutation(graphene.ObjectType):
     register_user = RegisterUser.Field()
     login_user = LoginUser.Field()
     logout_user = LogoutUser.Field()
     create_product = CreateProduct.Field()
     create_purchase = CreatePurchase.Field()
+    create_client_supplier = CreateClientSupplier.Field()
 
 
 class Mutation(EmployeeMutation, AuthMutation, graphene.ObjectType):
