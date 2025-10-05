@@ -50,7 +50,7 @@ class ClientSupplierQuery(graphene.ObjectType):
     clientSuppliers = graphene.List(ClientSupplierType)
     clientSupplier = graphene.Field(ClientSupplierType, id=graphene.ID(required=True))
 
-    def resolve_clientSupplier(self, info):
+    def resolve_clientSuppliers(self, info):
         return ClientSupplier.objects.all()
 
     def resolve_clientSupplier(self, info, id):
