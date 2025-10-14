@@ -110,3 +110,12 @@ class CreateClientSupplierInput(graphene.InputObjectType):
     typeDocument = graphene.String(required=True)  # 'R','D','O'
     typePerson = graphene.String(required=True)  # 'C','E'
 
+
+class UpdateClientSupplierInput(graphene.InputObjectType):
+    name = graphene.String(required=True)
+    address = graphene.String(required=False)
+    phone = graphene.String(required=False)
+    mail = graphene.String(required=False)
+    nDocument = graphene.Int(required=True)
+    typeDocument = graphene.String(required=True)
+    typePerson = graphene.String(required=True)

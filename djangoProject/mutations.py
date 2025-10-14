@@ -15,7 +15,7 @@ from .types import (
     RegisterUserInput, LoginUserInput,
     RegisterUserPayload, LoginUserPayload, LogoutUserPayload,
     AuthErrorType, CreateProductInput, ProductType, CreatePurchaseInput, PurchaseType, CreateClientSupplierInput,
-    ClientSupplierType
+    ClientSupplierType, UpdateClientSupplierInput
 )
 
 
@@ -218,6 +218,45 @@ class CreateClientSupplier(graphene.Mutation):
             return CreateClientSupplier(clientSupplier=None, success=False, errors=[AuthErrorType(message=str(e))])
 
 
+class UpdateClientSupplier(graphene.Mutation):
+    class Arguments:
+        id = graphene.ID(required=True)
+        input = UpdateClientSupplierInput(required=True)
+
+    clientSupplier = graphene.Field(ClientSupplierType)
+    success = graphene.Boolean()
+    errors = graphene.List(AuthErrorType)
+
+    def mutate(self, info, id, input):
+        try:
+            clientSupplier = ClientSupplier.objects.get(pk=id)
+
+            # Actualizar los campos
+            clientSupplier.name = input.name
+            clientSupplier.address = input.address
+            clientSupplier.phone = input.phone
+            clientSupplier.mail = input.mail
+            clientSupplier.nDocument = input.nDocument
+            clientSupplier.typeDocument = input.typeDocument
+            clientSupplier.typePerson = input.typePerson
+
+            clientSupplier.save()
+
+            return UpdateClientSupplier(clientSupplier=clientSupplier, success=True, errors=None)
+        except ClientSupplier.DoesNotExist:
+            return UpdateClientSupplier(
+                clientSupplier=None,
+                success=False,
+                errors=[AuthErrorType(message="Cliente/Proveedor no encontrado")]
+            )
+        except Exception as e:
+            return UpdateClientSupplier(
+                clientSupplier=None,
+                success=False,
+                errors=[AuthErrorType(message=str(e))]
+            )
+
+
 class AuthMutation(graphene.ObjectType):
     register_user = RegisterUser.Field()
     login_user = LoginUser.Field()
@@ -225,6 +264,7 @@ class AuthMutation(graphene.ObjectType):
     create_product = CreateProduct.Field()
     create_purchase = CreatePurchase.Field()
     create_client_supplier = CreateClientSupplier.Field()
+    update_client_supplier = UpdateClientSupplier.Field()
 
 
 class Mutation(EmployeeMutation, AuthMutation, graphene.ObjectType):
