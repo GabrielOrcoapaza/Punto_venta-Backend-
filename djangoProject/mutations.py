@@ -15,7 +15,7 @@ from .types import (
     RegisterUserInput, LoginUserInput,
     RegisterUserPayload, LoginUserPayload, LogoutUserPayload,
     AuthErrorType, CreateProductInput, ProductType, CreatePurchaseInput, PurchaseType, CreateClientSupplierInput,
-    ClientSupplierType, UpdateClientSupplierInput
+    ClientSupplierType, UpdateClientSupplierInput, UpdateProductInput
 )
 
 
@@ -161,6 +161,44 @@ class CreateProduct(graphene.Mutation):
             return CreateProduct(product=None, success=False, errors=[AuthErrorType(message=str(e))])
 
 
+class UpdateProduct(graphene.Mutation):
+    class Arguments:
+        id = graphene.ID(required=True)
+        input = UpdateProductInput(required=True)
+
+    product = graphene.Field(ProductType)
+    success = graphene.Boolean()
+    errors = graphene.List(AuthErrorType)
+
+    def mutate(self, info, id, input):
+        try:
+            product = Product.objects.get(pk=id)
+
+            # Actualizar los campos
+            product.name = input.name
+            product.code = input.code
+            product.price = input.price
+            product.laboratory = input.laboratory
+            product.alias = input.alias
+            product.quantity = input.quantity
+
+            product.save()
+
+            return UpdateProduct(product=product, success=True, errors=None)
+        except Product.DoesNotExist:
+            return UpdateProduct(
+                product=None,
+                success=False,
+                errors=[AuthErrorType(message="Producto no encontrado")]
+            )
+        except Exception as e:
+            return UpdateProduct(
+                product=None,
+                success=False,
+                errors=[AuthErrorType(message=str(e))]
+            )
+
+
 class CreatePurchase(graphene.Mutation):
     class Arguments:
         input = CreatePurchaseInput(required=True)
@@ -262,6 +300,7 @@ class AuthMutation(graphene.ObjectType):
     login_user = LoginUser.Field()
     logout_user = LogoutUser.Field()
     create_product = CreateProduct.Field()
+    update_product = UpdateProduct.Field()
     create_purchase = CreatePurchase.Field()
     create_client_supplier = CreateClientSupplier.Field()
     update_client_supplier = UpdateClientSupplier.Field()

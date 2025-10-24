@@ -90,6 +90,17 @@ class CreateProductInput(graphene.InputObjectType):
     subsidiary = graphene.Int()
 
 
+class UpdateProductInput(graphene.InputObjectType):
+    name = graphene.String(required=True)
+    code = graphene.Int(required=False)
+    price = graphene.Decimal(required=False)
+    laboratory = graphene.String(required=False)
+    alias = graphene.String(required=True)
+    quantity = graphene.Int(required=True)
+    purchase_price = graphene.Float()
+    due_date = graphene.Date()
+
+
 class CreatePurchaseInput(graphene.InputObjectType):
     productId = graphene.ID(required=True)
     quantity = graphene.Int(required=True)
