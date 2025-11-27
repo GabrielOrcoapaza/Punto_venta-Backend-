@@ -5,8 +5,8 @@ from django.contrib.auth import get_user
 
 from apps.hrmn.models import ClientSupplier
 from apps.products.models import Product
-from apps.sales.models import Purchase
-from .types import UserType, ProductType, PurchaseType, ClientSupplierType
+from apps.sales.models import Purchase, Sales
+from .types import UserType, ProductType, PurchaseType, ClientSupplierType, SaleType
 
 
 class EmployeeQuery(graphene.ObjectType):
@@ -33,6 +33,17 @@ class ProductQuery(graphene.ObjectType):
 
     def resolve_product(self, info, id):
         return Product.objects.get(pk=id)
+
+
+class SaleQuery(graphene.ObjectType):
+    sales = graphene.List(SaleType)
+    sale = graphene.Field(SaleType, id=graphene.ID(required=True))
+
+    def resolve_sales(self, info):
+        return Sales.objects.all()
+
+    def resolve_sale(self, info, id):
+        return Sales.objects.get(pk=id)
 
 
 class PurchaseQuery(graphene.ObjectType):

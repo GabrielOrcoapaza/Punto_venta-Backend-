@@ -7,7 +7,7 @@ from django.db import transaction
 
 from apps.products.models import Product
 from apps.hrmn.models import Subsidiary, ClientSupplier
-from apps.sales.models import Purchase
+from apps.sales.models import Purchase, Sales
 
 
 class SubsidiaryType(DjangoObjectType):
@@ -65,6 +65,12 @@ class ProductType(DjangoObjectType):
         fields = '__all__'
 
 
+class SaleType(DjangoObjectType):
+    class Meta:
+        model = Sales
+        fields = '__all__'
+
+
 class PurchaseType(DjangoObjectType):
     class Meta:
         model = Purchase
@@ -101,6 +107,17 @@ class UpdateProductInput(graphene.InputObjectType):
     due_date = graphene.Date()
 
 
+class CreateSaleInput(graphene.InputObjectType):
+    productId = graphene.ID(required=True)
+    quantity = graphene.Int(required=True)
+    price = graphene.Decimal(required=True)
+    subtotal = graphene.Decimal(required=True)
+    total = graphene.Decimal(required=True)
+    typeReceipt = graphene.String(required=True)
+    typePay = graphene.String(required=True)
+    date = graphene.DateTime()
+
+
 class CreatePurchaseInput(graphene.InputObjectType):
     productId = graphene.ID(required=True)
     quantity = graphene.Int(required=True)
@@ -130,3 +147,5 @@ class UpdateClientSupplierInput(graphene.InputObjectType):
     nDocument = graphene.Int(required=True)
     typeDocument = graphene.String(required=True)
     typePerson = graphene.String(required=True)
+
+

@@ -10,12 +10,12 @@ from graphene_django.types import ErrorType
 
 from apps.hrmn.models import ClientSupplier
 from apps.products.models import Product
-from apps.sales.models import Purchase
+from apps.sales.models import Purchase, Sales
 from .types import (
     RegisterUserInput, LoginUserInput,
     RegisterUserPayload, LoginUserPayload, LogoutUserPayload,
     AuthErrorType, CreateProductInput, ProductType, CreatePurchaseInput, PurchaseType, CreateClientSupplierInput,
-    ClientSupplierType, UpdateClientSupplierInput, UpdateProductInput
+    ClientSupplierType, UpdateClientSupplierInput, UpdateProductInput, CreateSaleInput, SaleType
 )
 
 
@@ -199,6 +199,39 @@ class UpdateProduct(graphene.Mutation):
             )
 
 
+class CreateSale(graphene.Mutation):
+    class Arguments:
+        input = CreateSaleInput(required=True)
+
+    sale = graphene.Field(SaleType)
+    success = graphene.Boolean()
+    errors = graphene.List(AuthErrorType)
+
+    def mutate(self, info, input):
+        try:
+            try:
+                product = Product.objects.get(id=input.productId)
+            except Product.DoesNotExist:
+                return CreateSale(
+                    sale=None,
+                    success=False,
+                    errors=[AuthErrorType(message=f"Producto '{input.productId}' no encontrado")]
+                )
+            sale = Sales.objects.create(
+                product=product,
+                price=input.price,
+                quantity=input.quantity,
+                subtotal=input.subtotal,
+                total=input.total,
+                typeReceipt=input.typeReceipt,
+                typePay=input.typePay,
+                date=input.date,
+            )
+            return CreateSale(sale=sale, success=True, errors=None)
+        except Exception as e:
+            return CreateSale(sale=None, success=False, errors=[AuthErrorType(message=str(e))])
+
+
 class CreatePurchase(graphene.Mutation):
     class Arguments:
         input = CreatePurchaseInput(required=True)
@@ -269,7 +302,7 @@ class UpdateClientSupplier(graphene.Mutation):
         try:
             clientSupplier = ClientSupplier.objects.get(pk=id)
 
-            # Actualizar los campos
+            # Actualizar los camposn
             clientSupplier.name = input.name
             clientSupplier.address = input.address
             clientSupplier.phone = input.phone
@@ -302,6 +335,7 @@ class AuthMutation(graphene.ObjectType):
     create_product = CreateProduct.Field()
     update_product = UpdateProduct.Field()
     create_purchase = CreatePurchase.Field()
+    create_sale = CreateSale.Field()
     create_client_supplier = CreateClientSupplier.Field()
     update_client_supplier = UpdateClientSupplier.Field()
 
