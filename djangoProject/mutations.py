@@ -8,9 +8,9 @@ from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from graphene_django.types import ErrorType
 
-from apps.hrmn.models import ClientSupplier
+from apps.hrmn.models import ClientSupplier, Subsidiary
 from apps.products.models import Product
-from apps.sales.models import Purchase, Sales
+from apps.sales.models import Purchase, Sales, DetailSales
 from .types import (
     RegisterUserInput, LoginUserInput,
     RegisterUserPayload, LoginUserPayload, LogoutUserPayload,
@@ -200,6 +200,8 @@ class UpdateProduct(graphene.Mutation):
 
 
 class CreateSale(graphene.Mutation):
+    """Mutación para crear una venta con múltiples productos"""
+
     class Arguments:
         input = CreateSaleInput(required=True)
 
@@ -209,27 +211,120 @@ class CreateSale(graphene.Mutation):
 
     def mutate(self, info, input):
         try:
-            try:
-                product = Product.objects.get(id=input.productId)
-            except Product.DoesNotExist:
+            from django.utils import timezone
+            from decimal import Decimal
+
+            # Validar que haya al menos un producto
+            if not input.details or len(input.details) == 0:
                 return CreateSale(
                     sale=None,
                     success=False,
-                    errors=[AuthErrorType(message=f"Producto '{input.productId}' no encontrado")]
+                    errors=[AuthErrorType(message="Debe incluir al menos un producto")]
                 )
+
+            # Obtener el empleado actual (si tienes autenticación)
+            employee = None
+            if info.context.user.is_authenticated:
+                try:
+                    # Ajusta esto según tu modelo de usuario/empleado
+                    employee = info.context.user.employee
+                except:
+                    pass
+
+            # Obtener cliente si se proporciona
+            provider = None
+            if input.providerId:
+                try:
+                    provider = ClientSupplier.objects.get(id=input.providerId)
+                except ClientSupplier.DoesNotExist:
+                    return CreateSale(
+                        sale=None,
+                        success=False,
+                        errors=[AuthErrorType(message=f"Cliente '{input.providerId}' no encontrado")]
+                    )
+
+            # Obtener sucursal si se proporciona
+            subsidiary = None
+            if input.subsidiaryId:
+                try:
+                    # from hrmn.models import Subsidiary
+                    subsidiary = Subsidiary.objects.get(id=input.subsidiaryId)
+                except Subsidiary.DoesNotExist:
+                    return CreateSale(
+                        sale=None,
+                        success=False,
+                        errors=[AuthErrorType(message=f"Sucursal '{input.subsidiaryId}' no encontrada")]
+                    )
+
+            # Calcular el total de la venta sumando todos los detalles
+            total_sale = Decimal('0.00')
+            detail_objects = []
+
+            # Validar y preparar los detalles
+            for detail_input in input.details:
+                try:
+                    product = Product.objects.get(id=detail_input.productId)
+                except Product.DoesNotExist:
+                    return CreateSale(
+                        sale=None,
+                        success=False,
+                        errors=[AuthErrorType(message=f"Producto '{detail_input.productId}' no encontrado")]
+                    )
+
+                # Validar stock disponible (si aplica)
+                if product.quantity < detail_input.quantity:
+                    return CreateSale(
+                        sale=None,
+                        success=False,
+                        errors=[AuthErrorType(
+                            message=f"Stock insuficiente para el producto '{product.name}'. Disponible: {product.quantity}, Solicitado: {detail_input.quantity}"
+                        )]
+                    )
+
+                total_sale += Decimal(str(detail_input.total))
+
+                # Preparar objeto DetailSales (aún no guardado)
+                detail_obj = DetailSales(
+                    product=product,
+                    quantity=detail_input.quantity,
+                    price=detail_input.price,
+                    subtotal=detail_input.subtotal,
+                    total=detail_input.total,
+                    observation=getattr(detail_input, 'observation', None)
+                )
+                detail_objects.append(detail_obj)
+
+            # Crear la venta (Sales) - UNA SOLA VENTA
             sale = Sales.objects.create(
-                product=product,
-                price=input.price,
-                quantity=input.quantity,
-                subtotal=input.subtotal,
-                total=input.total,
-                typeReceipt=input.typeReceipt,
-                typePay=input.typePay,
-                date=input.date,
+                date_creation=input.date if input.date else timezone.now(),
+                employee_creation=employee,
+                type_receipt=input.typeReceipt,
+                type_pay=input.typePay,
+                total=total_sale,  # Total de todos los productos
+                provider=provider,
+                subsidiary=subsidiary
             )
+
+            # Crear los detalles de venta (DetailSales) - MÚLTIPLES DETALLES
+            # Todos asociados a la misma venta
+            for detail_obj in detail_objects:
+                detail_obj.sale = sale  # Asociar a la misma venta
+                detail_obj.save()
+
+                # Actualizar stock del producto
+                detail_obj.product.quantity -= detail_obj.quantity
+                detail_obj.product.save()
+
             return CreateSale(sale=sale, success=True, errors=None)
+
         except Exception as e:
-            return CreateSale(sale=None, success=False, errors=[AuthErrorType(message=str(e))])
+            import traceback
+            traceback.print_exc()
+            return CreateSale(
+                sale=None,
+                success=False,
+                errors=[AuthErrorType(message=str(e))]
+            )
 
 
 class CreatePurchase(graphene.Mutation):

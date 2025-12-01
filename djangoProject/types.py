@@ -7,7 +7,7 @@ from django.db import transaction
 
 from apps.products.models import Product
 from apps.hrmn.models import Subsidiary, ClientSupplier
-from apps.sales.models import Purchase, Sales
+from apps.sales.models import Purchase, Sales, DetailSales
 
 
 class SubsidiaryType(DjangoObjectType):
@@ -65,10 +65,27 @@ class ProductType(DjangoObjectType):
         fields = '__all__'
 
 
+class DetailSaleType(DjangoObjectType):
+    """Type para el detalle de venta (DetailSales)"""
+
+    class Meta:
+        model = DetailSales
+        fields = '__all__'
+
+
 class SaleType(DjangoObjectType):
+    """Type para la venta (Sales)"""
+
     class Meta:
         model = Sales
         fields = '__all__'
+
+    # ✅ Usa referencia directa - DetailSaleType ya está definido arriba
+    details = graphene.List(DetailSaleType)
+
+    def resolve_details(self, info):
+        """Obtener todos los detalles (productos) de esta venta"""
+        return self.detailsales_set.all()
 
 
 class PurchaseType(DjangoObjectType):
@@ -107,15 +124,25 @@ class UpdateProductInput(graphene.InputObjectType):
     due_date = graphene.Date()
 
 
-class CreateSaleInput(graphene.InputObjectType):
+# 1. INPUT TYPES (Agregar a tu archivo de types/inputs)
+class DetailSaleInput(graphene.InputObjectType):
+    """Input para un producto individual en la venta"""
     productId = graphene.ID(required=True)
     quantity = graphene.Int(required=True)
     price = graphene.Decimal(required=True)
     subtotal = graphene.Decimal(required=True)
     total = graphene.Decimal(required=True)
-    typeReceipt = graphene.String(required=True)
-    typePay = graphene.String(required=True)
-    date = graphene.DateTime()
+    observation = graphene.String(required=False)
+
+
+class CreateSaleInput(graphene.InputObjectType):
+    """Input para crear una venta con múltiples productos"""
+    providerId = graphene.ID(required=False)  # Cliente (ClientSupplier) - opcional
+    subsidiaryId = graphene.ID(required=False)  # Sucursal - opcional
+    typeReceipt = graphene.String(required=True)  # 'B', 'F', 'T'
+    typePay = graphene.String(required=True)  # 'E', 'Y', 'P'
+    date = graphene.DateTime(required=False)  # Si no se envía, usar datetime.now()
+    details = graphene.List(DetailSaleInput, required=True)  # Lista de productos
 
 
 class CreatePurchaseInput(graphene.InputObjectType):
