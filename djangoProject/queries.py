@@ -68,5 +68,5 @@ class ClientSupplierQuery(graphene.ObjectType):
         return ClientSupplier.objects.get(pk=id)
 
 
-class Query(EmployeeQuery, AuthQuery, ProductQuery, PurchaseQuery, ClientSupplierQuery, graphene.ObjectType):
+class Query(EmployeeQuery, AuthQuery, ProductQuery, SaleQuery, PurchaseQuery, ClientSupplierQuery, graphene.ObjectType):
     pass
