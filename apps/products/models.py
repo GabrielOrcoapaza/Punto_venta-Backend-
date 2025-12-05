@@ -52,7 +52,7 @@ class Observation(models.Model):
 
 class Product(models.Model):
     id = models.AutoField(primary_key=True)
-    code = models.IntegerField(null=True, blank=True)
+    code = models.CharField(max_length=100, null=True, blank=True)
     due_date = models.DateField(null=True, blank=True)
     name = models.CharField(max_length=100, null=True, blank=True)
     alias = models.CharField(max_length=100, null=True, blank=True)

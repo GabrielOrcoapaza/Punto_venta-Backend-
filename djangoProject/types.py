@@ -102,7 +102,7 @@ class ClientSupplierType(DjangoObjectType):
 
 class CreateProductInput(graphene.InputObjectType):
     name = graphene.String(required=True)
-    code = graphene.Int(required=True)
+    code = graphene.String(required=True)
     price = graphene.Decimal(required=True)
     laboratory = graphene.String(required=True)
     alias = graphene.String(required=True)
@@ -115,7 +115,7 @@ class CreateProductInput(graphene.InputObjectType):
 
 class UpdateProductInput(graphene.InputObjectType):
     name = graphene.String(required=True)
-    code = graphene.Int(required=False)
+    code = graphene.String(required=False)
     price = graphene.Decimal(required=False)
     laboratory = graphene.String(required=False)
     alias = graphene.String(required=True)
