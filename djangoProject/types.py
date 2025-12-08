@@ -7,7 +7,7 @@ from django.db import transaction
 
 from apps.products.models import Product
 from apps.hrmn.models import Subsidiary, ClientSupplier
-from apps.sales.models import Purchase, Sales, DetailSales
+from apps.sales.models import Purchase, Sales, DetailSales, Cash, Payment
 
 
 class SubsidiaryType(DjangoObjectType):
@@ -42,14 +42,12 @@ class AuthErrorType(graphene.ObjectType):
 
 class RegisterUserPayload(graphene.ObjectType):
     user = graphene.Field(UserType)
-    token = graphene.String()
     success = graphene.Boolean()
     errors = graphene.List(AuthErrorType)
 
 
 class LoginUserPayload(graphene.ObjectType):
     user = graphene.Field(UserType)
-    token = graphene.String()
     success = graphene.Boolean()
     errors = graphene.List(AuthErrorType)
 
@@ -98,6 +96,61 @@ class ClientSupplierType(DjangoObjectType):
     class Meta:
         model = ClientSupplier
         fields = '__all__'
+
+
+class ErrorType(graphene.ObjectType):
+    messages = graphene.List(graphene.String)
+
+
+class MethodTotal(graphene.ObjectType):
+    method = graphene.String()
+    total = graphene.Decimal()
+
+
+class CashSummaryType(graphene.ObjectType):
+    by_method = graphene.List(MethodTotal)
+    total_expected = graphene.Decimal()
+    total_counted = graphene.Decimal()
+    difference = graphene.Decimal()
+
+
+class CashType(DjangoObjectType):
+    class Meta:
+        model = Cash
+        fields = ('id',
+                  'name',
+                  'user',
+                  'subsidiary',
+                  'status',
+                  'initialAmount',
+                  'closingAmount',
+                  'difference',
+                  'dateOpen',
+                  'dateClose',
+                  'totalSales')
+
+
+class PaymentType(DjangoObjectType):
+    class Meta:
+        model = Payment
+        fields = ('id',
+                  'subsidiary',
+                  'cash',
+                  'sale',
+                  'purchase',
+                  'payment_type',
+                  'payment_method',
+                  'status',
+                  'payment_date',
+                  'due_date',
+                  'total_amount',
+                  'paid_amount',
+                  'reference_number',
+                  'notes',
+                  'user',
+                  'is_active',
+                  'created_at',
+                  'updated_at')
 
 
 class CreateProductInput(graphene.InputObjectType):
@@ -176,3 +229,22 @@ class UpdateClientSupplierInput(graphene.InputObjectType):
     typePerson = graphene.String(required=True)
 
 
+class OpenCashInput(graphene.InputObjectType):
+    subsidiary_id = graphene.ID(required=True)
+    name = graphene.String(required=False)
+    initial_amount = graphene.Decimal(required=True)
+
+
+class CloseCashInput(graphene.InputObjectType):
+    cash_id = graphene.ID(required=True)
+    closing_amount = graphene.Decimal(required=True)
+
+
+class CreateExpensePaymentInput(graphene.InputObjectType):
+    subsidiary_id = graphene.ID(required=True)
+    cash_id = graphene.ID(required=True)
+    payment_method = graphene.String(required=True)
+    total_amount = graphene.Decimal(required=True)
+    paid_amount = graphene.Decimal(required=True)
+    payment_date = graphene.DateTime(required=False)
+    notes = graphene.String(required=False)

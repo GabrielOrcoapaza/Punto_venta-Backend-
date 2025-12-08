@@ -1,17 +1,35 @@
+from decimal import Decimal
+
+from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
-# Create your models here.
-from django.db.models import Sum, F
+from django.db.models import Sum, F, Q
 from django.utils import timezone
 from datetime import datetime
 
-
-# from enum import Enum
-
-# from apps.employees.models import Empleado
-# from django_mysql.models import EnumField
-# from django_enum import Enumfield
+from apps import hrmn, sales
 from apps.hrmn.models import ClientSupplier
 from apps.products.models import Product
+
+PAYMENT_METHODS = (
+    ('E', 'EFECTIVO'),
+    ('T', 'TARJETA'),
+    ('Y', 'YAPE'),
+    ('P', 'PLIN'),
+)
+
+PAYMENT_TYPES = (
+    ('SALE', 'VENTA'),
+    ('PURCHASE', 'COMPRA'),
+    ('EXPENSE', 'EGRESO'),
+    ('ADJUST', 'AJUSTE'),
+)
+
+PAYMENT_STATUS = (
+    ('PENDING', 'PENDIENTE'),
+    ('PAID', 'PAGADO'),
+    ('CANCELLED', 'ANULADO'),
+)
 
 
 class Sales(models.Model):
@@ -27,11 +45,7 @@ class Sales(models.Model):
                                         related_name='order_employee_cancel', blank=True, null=True)
     type_receipt = models.CharField(max_length=2, choices=TYPE_RECEIPT_CHOICES, default='B')
     type_pay = models.CharField(max_length=2, choices=TYPE_PAY_CHOICES, default='E')
-    # quantity = models.IntegerField(null=True, blank=True)
-    # price = models.IntegerField(null=True, blank=True)
-    # subtotal = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     total = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    # date = models.DateTimeField(blank=True, null=True)
     provider = models.ForeignKey(ClientSupplier, on_delete=models.CASCADE, blank=True, null=True)
     subsidiary = models.ForeignKey('hrmn.Subsidiary', on_delete=models.CASCADE, related_name='order_subsidiary',
                                    blank=True, null=True)
@@ -75,71 +89,124 @@ class Purchase(models.Model):
 
 
 class Cash(models.Model):
-    # STATE_CASH_CHOICES = (('A', 'APERTURA'), ('C', 'CIERRE'))
+    STATUS_CASH_CHOICES = (('A', 'APERTURA'), ('C', 'CIERRE'))
+
     id = models.AutoField(primary_key=True)
-    name = models.CharField('Nombre de caja', max_length=100, null=True, blank=True)
-    employee = models.ForeignKey('hrmn.Employee', on_delete=models.CASCADE, null=True, blank=True)
-    initial_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    date_open = models.DateTimeField('Fecha de apertura', null=True, blank=True)
-    date_close = models.DateTimeField('Fecha de cierre', null=True, blank=True)
-    total_sales = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    name = models.CharField(max_length=100, null=True, blank=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='cashes')
     subsidiary = models.ForeignKey('hrmn.Subsidiary', on_delete=models.CASCADE, blank=True, null=True)
 
-    # state_cash = models.CharField(max_length=1, choices=STATE_CASH_CHOICES, default='')
+    status = models.CharField(max_length=1, choices=STATUS_CASH_CHOICES, default='C')
+    initialAmount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    closingAmount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    difference = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+
+    dateOpen = models.DateTimeField(null=True, blank=True)
+    dateClose = models.DateTimeField(null=True, blank=True)
+
+    totalSales = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
 
     def __str__(self):
         return str(self.id)
 
     class Meta:
         db_table = 'Cash'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['subsidiary'],
+                condition=Q(status='A'),
+                name='unique_open_cash_per_subsidiary'
+            ),
+        ]
 
     def cash_status(self):
-        status = 'C'
-        cash_flow_set = CashFlow.objects.filter(cash=self, status_cash__in=['A', 'C'])
-        if cash_flow_set.exists():
-            cash_flow_obj = cash_flow_set.last()
-            return cash_flow_obj.status_cash
-        else:
-            return status
+        return self.status
 
     @staticmethod
     def get_open_cash(subsidiary):
-        """
-        Retorna la caja abierta (status 'A') para una empresa (company) específica.
-        """
-        cash_flow = CashFlow.objects.filter(cash__subsidiary=subsidiary, status_cash='A').last()
-        if cash_flow:
-            return cash_flow.cash
-        return None
+        return Cash.objects.filter(subsidiary=subsidiary, status='A').last()
 
 
-class CashFlow(models.Model):
-    STATUS_CASH_CHOICES = (('A', 'APERTURA'), ('C', 'CIERRE'))
-    RECEIPT_TYPE_CHOICES = (('F', 'FACTURA'), ('B', 'BOLETA'), ('T', 'TICKET'))
-    TYPE_PAY_CHOICES = (('E', 'EFECTIVO'), ('T', 'TARJETA'), ('Y', 'YAPE'), ('P', 'PLIN'))
+class Payment(models.Model):
     id = models.AutoField(primary_key=True)
-    cash = models.ForeignKey('sales.Cash', on_delete=models.CASCADE, default=True)
-    order = models.ForeignKey('sales.Sales', on_delete=models.CASCADE, null=True, blank=True)
-    detailOrder = models.ForeignKey('sales.DetailSales', on_delete=models.CASCADE, null=True, blank=True)
-    # detailPlan = models.ForeignKey('sales.Detail_Plan', on_delete=models.CASCADE, default=True)
-    customer = models.CharField('Cliente', max_length=100, null=True, blank=True)
-    date = models.DateTimeField('Fecha de venta', null=True, blank=True)
-    # user = models.ForeignKey('employees.Employee', on_delete=models.CASCADE, null=True)
-    receipt_type = models.CharField(max_length=1, choices=RECEIPT_TYPE_CHOICES, default='')
-    type_pay = models.CharField(max_length=1, choices=TYPE_PAY_CHOICES, default='')
-    status_cash = models.CharField(max_length=1, choices=STATUS_CASH_CHOICES, default='C')
-    total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    subsidiary = models.ForeignKey('hrmn.Subsidiary', on_delete=models.CASCADE, related_name='payments')
+    cash = models.ForeignKey('sales.Cash', on_delete=models.PROTECT, related_name='payments')
+    sale = models.ForeignKey('sales.Sales', on_delete=models.CASCADE, null=True, blank=True, related_name='payments')
+    purchase = models.ForeignKey('Purchase', on_delete=models.CASCADE, null=True, blank=True, related_name='payments')
+
+    payment_type = models.CharField(max_length=10, choices=PAYMENT_TYPES)
+    payment_method = models.CharField(max_length=10, choices=PAYMENT_METHODS)
+    status = models.CharField(max_length=10, choices=PAYMENT_STATUS, default='PAID')
+
+    payment_date = models.DateTimeField(auto_now_add=True)
+    due_date = models.DateTimeField(null=True, blank=True)
+
+    total_amount = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
+    paid_amount = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
+
+    reference_number = models.CharField(max_length=50, blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='payments')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        if bool(self.sale) == bool(self.purchase):
+            raise ValidationError('Debe asociarse a una venta o a una compra, no ambas.')
+        if self.cash and self.cash.status != 'A':
+            raise ValidationError('La caja debe estar abierta para registrar pagos.')
 
     def __str__(self):
-        return str(self.id)
+        return f'{self.payment_date} - {self.paid_amount}'
 
     class Meta:
-        db_table = 'CashFlow'
+        db_table = 'Payment'
+        ordering = ['-payment_date']
+        indexes = [
+            models.Index(fields=['subsidiary', 'status']),
+            models.Index(fields=['payment_date']),
+            models.Index(fields=['payment_method']),
+            models.Index(fields=['cash', 'payment_date']),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                check=(
+                        (models.Q(sale__isnull=False) & models.Q(purchase__isnull=True)) |
+                        (models.Q(sale__isnull=True) & models.Q(purchase__isnull=False))
+                ),
+                name='payment_sale_xor_purchase'
+            ),
+        ]
+
+
+# class CashFlow(models.Model):
+#     STATUS_CASH_CHOICES = (('A', 'APERTURA'), ('C', 'CIERRE'))
+#     RECEIPT_TYPE_CHOICES = (('F', 'FACTURA'), ('B', 'BOLETA'), ('T', 'TICKET'))
+#     TYPE_PAY_CHOICES = (('E', 'EFECTIVO'), ('T', 'TARJETA'), ('Y', 'YAPE'), ('P', 'PLIN'))
+#     id = models.AutoField(primary_key=True)
+#     cash = models.ForeignKey('sales.Cash', on_delete=models.CASCADE, default=True)
+#     order = models.ForeignKey('sales.Sales', on_delete=models.CASCADE, null=True, blank=True)
+#     detailOrder = models.ForeignKey('sales.DetailSales', on_delete=models.CASCADE, null=True, blank=True)
+#     # detailPlan = models.ForeignKey('sales.Detail_Plan', on_delete=models.CASCADE, default=True)
+#     customer = models.CharField('Cliente', max_length=100, null=True, blank=True)
+#     date = models.DateTimeField('Fecha de venta', null=True, blank=True)
+#     # user = models.ForeignKey('employees.Employee', on_delete=models.CASCADE, null=True)
+#     receipt_type = models.CharField(max_length=1, choices=RECEIPT_TYPE_CHOICES, default='')
+#     type_pay = models.CharField(max_length=1, choices=TYPE_PAY_CHOICES, default='')
+#     status_cash = models.CharField(max_length=1, choices=STATUS_CASH_CHOICES, default='C')
+#     total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+#
+#     def __str__(self):
+#         return str(self.id)
+#
+#     class Meta:
+#         db_table = 'CashFlow'
 
 
 class PaymentDistribution(models.Model):
     id = models.AutoField(primary_key=True)
-    cash_flow = models.ForeignKey(CashFlow, on_delete=models.CASCADE, related_name='distributions')
+    # cash_flow = models.ForeignKey(CashFlow, on_delete=models.CASCADE, related_name='distributions')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     quantity = models.IntegerField(blank=True, null=True)
 

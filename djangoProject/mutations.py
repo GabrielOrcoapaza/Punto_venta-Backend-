@@ -1,21 +1,26 @@
+from django.utils import timezone
+from decimal import Decimal
+
 import graphene
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.forms import UserCreationForm
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.contrib.auth.tokens import default_token_generator
+from django.db.models import Sum
 from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from graphene_django.types import ErrorType
 
-from apps.hrmn.models import ClientSupplier, Subsidiary
+from apps.hrmn.models import ClientSupplier, Subsidiary, Employee
 from apps.products.models import Product
-from apps.sales.models import Purchase, Sales, DetailSales
+from apps.sales.models import Purchase, Sales, DetailSales, Cash, Payment
 from .types import (
     RegisterUserInput, LoginUserInput,
     RegisterUserPayload, LoginUserPayload, LogoutUserPayload,
     AuthErrorType, CreateProductInput, ProductType, CreatePurchaseInput, PurchaseType, CreateClientSupplierInput,
-    ClientSupplierType, UpdateClientSupplierInput, UpdateProductInput, CreateSaleInput, SaleType
+    ClientSupplierType, UpdateClientSupplierInput, UpdateProductInput, CreateSaleInput, SaleType, OpenCashInput,
+    CashType, CloseCashInput, CashSummaryType, MethodTotal, CreateExpensePaymentInput, PaymentType
 )
 
 
@@ -36,25 +41,25 @@ class RegisterUser(graphene.Mutation):
         # Validar que las contraseñas coincidan
         if input.password1 != input.password2:
             errors.append(AuthErrorType(field="password2", message="Las contraseñas no coinciden"))
-            return RegisterUserPayload(success=False, errors=errors, user=None, token=None)
+            return RegisterUserPayload(success=False, errors=errors, user=None)
 
         # Validar que el usuario no exista
         if User.objects.filter(username=input.username).exists():
             errors.append(AuthErrorType(field="username", message="Este nombre de usuario ya existe"))
-            return RegisterUserPayload(success=False, errors=errors, user=None, token=None)
+            return RegisterUserPayload(success=False, errors=errors, user=None)
 
         # Validar que el email no exista
         if User.objects.filter(email=input.email).exists():
             errors.append(AuthErrorType(field="email", message="Este email ya está registrado"))
-            return RegisterUserPayload(success=False, errors=errors, user=None, token=None)
+            return RegisterUserPayload(success=False, errors=errors, user=None)
 
         # Validar longitud de contraseña
         if len(input.password1) < 8:
             errors.append(AuthErrorType(field="password1", message="La contraseña debe tener al menos 8 caracteres"))
-            return RegisterUserPayload(success=False, errors=errors, user=None, token=None)
+            return RegisterUserPayload(success=False, errors=errors, user=None)
 
         if errors:
-            return RegisterUserPayload(success=False, errors=errors, user=None, token=None)
+            return RegisterUserPayload(success=False, errors=errors, user=None)
 
         try:
             with transaction.atomic():
@@ -62,24 +67,23 @@ class RegisterUser(graphene.Mutation):
                 user = User.objects.create_user(
                     username=input.username,
                     email=input.email,
-                    password=input.password1
+                    password=input.password1,
+                    first_name=input.first_name or '',
+                    last_name=input.last_name or ''
                 )
 
-                # Generar token (simplificado - en producción usar JWT)
-                token = default_token_generator.make_token(user)
-
-                # Hacer login automático
+                # Hacer login automático (esto crea la sesión)
                 login(info.context, user)
 
                 return RegisterUserPayload(
                     success=True,
                     user=user,
-                    token=token,
                     errors=[]
                 )
         except Exception as e:
+            print(f"Error en registro: {e}")
             errors.append(AuthErrorType(field="general", message="Error al crear el usuario"))
-            return RegisterUserPayload(success=False, errors=errors, user=None, token=None)
+            return RegisterUserPayload(success=False, errors=errors, user=None)
 
 
 class LoginUser(graphene.Mutation):
@@ -99,22 +103,20 @@ class LoginUser(graphene.Mutation):
 
         if user is None:
             errors.append(AuthErrorType(field="username", message="Credenciales inválidas"))
-            return LoginUserPayload(success=False, errors=errors, user=None, token=None)
+            return LoginUserPayload(success=False, errors=errors, user=None)
 
         if not user.is_active:
             errors.append(AuthErrorType(field="username", message="Cuenta desactivada"))
-            return LoginUserPayload(success=False, errors=errors, user=None, token=None)
+            return LoginUserPayload(success=False, errors=errors, user=None)
 
-        # Hacer login
+        # Hacer login (esto crea la sesión de Django)
         login(info.context, user)
 
-        # Generar token
-        token = default_token_generator.make_token(user)
+        print(f"✅ Usuario {user.username} autenticado. Session key: {info.context.session.session_key}")
 
         return LoginUserPayload(
             success=True,
             user=user,
-            token=token,
             errors=[]
         )
 
@@ -423,6 +425,168 @@ class UpdateClientSupplier(graphene.Mutation):
             )
 
 
+class OpenCash(graphene.Mutation):
+    class Arguments:
+        input = OpenCashInput(required=True)
+
+    cash = graphene.Field(CashType)
+    success = graphene.Boolean()
+    errors = graphene.List(ErrorType)
+
+    @staticmethod
+    def mutate(root, info, input):
+        user = info.context.user
+
+        # DEBUG
+        print(f"🔍 OpenCash - Usuario: {user}")
+        print(f"🔍 OpenCash - Autenticado: {user.is_authenticated}")
+
+        if not user.is_authenticated:
+            print("❌ Usuario NO autenticado en OpenCash")
+            return OpenCash(
+                cash=None,
+                success=False,
+                errors=[ErrorType(messages=['Debe iniciar sesión para abrir una caja'])]
+            )
+
+        print(f"✅ Usuario autenticado, continuando...")
+
+        try:
+            subsidiary = Subsidiary.objects.get(id=input.subsidiary_id)
+            print(f"✅ Subsidiary encontrada: {subsidiary}")
+        except Subsidiary.DoesNotExist:
+            print(f"❌ Subsidiary {input.subsidiary_id} no encontrada")
+            return OpenCash(
+                cash=None,
+                success=False,
+                errors=[ErrorType(messages=['Sucursal no encontrada'])]
+            )
+        except Exception as e:
+            print(f"❌ Error buscando subsidiary: {str(e)}")
+            return OpenCash(
+                cash=None,
+                success=False,
+                errors=[ErrorType(messages=[f'Error: {str(e)}'])]
+            )
+
+        exists_open = Cash.objects.filter(subsidiary=subsidiary, status='A').exists()
+        print(f"🔍 ¿Existe caja abierta?: {exists_open}")
+
+        if exists_open:
+            print("❌ Ya existe una caja abierta")
+            return OpenCash(
+                cash=None,
+                success=False,
+                errors=[ErrorType(messages=['Ya existe una caja abierta en esta sucursal'])]
+            )
+
+        try:
+            print(f"🔍 Creando caja...")
+
+            # USAR CAMELCASE como está definido en el modelo
+            cash = Cash.objects.create(
+                subsidiary=subsidiary,
+                name=getattr(input, 'name', None) or 'Caja',
+                user=user,
+                status='A',
+                initialAmount=Decimal(str(input.initial_amount)),  # ⬅️ camelCase
+                dateOpen=timezone.now(),  # ⬅️ camelCase
+            )
+
+            print(f"✅ Caja {cash.id} creada exitosamente")
+            print(f"✅ Detalles: id={cash.id}, status={cash.status}, amount={cash.initialAmount}")
+            return OpenCash(cash=cash, success=True, errors=[])
+
+        except Exception as e:
+            print(f"❌ Error creando caja: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return OpenCash(
+                cash=None,
+                success=False,
+                errors=[ErrorType(messages=[f'Error al crear caja: {str(e)}'])]
+            )
+
+
+class CloseCash(graphene.Mutation):
+    class Arguments:
+        input = CloseCashInput(required=True)
+    cash = graphene.Field(CashType)
+    summary = graphene.Field(CashSummaryType)
+    success = graphene.Boolean()
+    errors = graphene.List(ErrorType)
+
+    @staticmethod
+    def mutate(root, info, input):
+        try:
+            cash = Cash.objects.get(id=input.cash_id)
+        except Cash.DoesNotExist:
+            return CloseCash(cash=None, summary=None, success=False, errors=[ErrorType(messages=['Caja no encontrada'])])
+
+        if cash.status != 'A':
+            return CloseCash(cash=None, summary=None, success=False, errors=[ErrorType(messages=['La caja no está abierta'])])
+
+        user = info.context.user
+
+        payments_qs = Payment.objects.filter(cash=cash, status='PAID')
+        by_method_qs = payments_qs.values('payment_method').annotate(total=Sum('paid_amount'))
+        by_method = [
+            MethodTotal(method=row['payment_method'], total=row['total'] or Decimal('0.00'))
+        for row in by_method_qs
+        ]
+        total_expected = payments_qs.aggregate(t=Sum('paid_amount'))['t'] or Decimal('0.00')
+        total_counted = Decimal(str(input.closing_amount))
+        difference = total_counted - total_expected
+
+        cash.closing_amount = total_counted
+        cash.difference = difference
+        cash.status = 'C'
+        cash.date_close = timezone.now()
+        cash.user = user
+        cash.save()
+
+        summary = CashSummaryType(
+            by_method=by_method,
+            total_expected=total_expected,
+            total_counted=total_counted,
+            difference=difference,
+        )
+        return CloseCash(cash=cash, summary=summary, success=True, errors=[])
+
+
+class CreateExpensePayment(graphene.Mutation):
+    class Arguments:
+        input = CreateExpensePaymentInput(required=True)
+    payment = graphene.Field(graphene.NonNull(graphene.JSONString))
+    success = graphene.Boolean()
+    errors = graphene.List(ErrorType)
+
+    @staticmethod
+    def mutate(root, info, input):
+        user = info.context.user
+        try:
+            subsidiary = Subsidiary.objects.get(id=input.subsidiary_id)
+            cash = Cash.objects.get(id=input.cash_id)
+        except Subsidiary.DoesNotExist:
+            return CreateExpensePayment(payment=None, success=False, errors=[ErrorType(messages=['Sucursal no encontrada'])])
+        except Cash.DoesNotExist:
+            return CreateExpensePayment(payment=None, success=False, errors=[ErrorType(messages=['Caja no encontrada'])])
+
+        payment = Payment.objects.create(
+            subsidiary=subsidiary,
+            cash=cash,
+            payment_type='EXPENSE',
+            payment_method=input.payment_method,
+            status='PAID',
+            payment_date=input.payment_date or timezone.now(),
+            total_amount=Decimal(str(input.total_amount)),
+            paid_amount=Decimal(str(input.paid_amount)),
+            notes=input.notes or '',
+            user=user,
+        )
+        return CreateExpensePayment(payment={'id': str(payment.id)}, success=True, errors=[])
+
+
 class AuthMutation(graphene.ObjectType):
     register_user = RegisterUser.Field()
     login_user = LoginUser.Field()
@@ -433,6 +597,9 @@ class AuthMutation(graphene.ObjectType):
     create_sale = CreateSale.Field()
     create_client_supplier = CreateClientSupplier.Field()
     update_client_supplier = UpdateClientSupplier.Field()
+    open_cash = OpenCash.Field()
+    close_cash = CloseCash.Field()
+    create_expense_payment = CreateExpensePayment.Field()
 
 
 class Mutation(EmployeeMutation, AuthMutation, graphene.ObjectType):
