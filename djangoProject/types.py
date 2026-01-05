@@ -19,7 +19,7 @@ class SubsidiaryType(DjangoObjectType):
 class UserType(DjangoObjectType):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'is_active', 'date_joined')
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'is_active', 'date_joined', 'is_staff')
         # exclude = ('password',)
 
 
@@ -28,6 +28,8 @@ class RegisterUserInput(graphene.InputObjectType):
     email = graphene.String(required=True)
     password1 = graphene.String(required=True)
     password2 = graphene.String(required=True)
+    first_name = graphene.String(required=False)
+    last_name = graphene.String(required=False)
 
 
 class LoginUserInput(graphene.InputObjectType):

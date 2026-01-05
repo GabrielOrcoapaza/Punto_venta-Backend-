@@ -21,7 +21,17 @@ class AuthQuery(graphene.ObjectType):
 
     def resolve_me(self, info):
         user = info.context.user
-        if user.is_authenticated:
+
+        # Debug
+        print("=" * 50)
+        print(f"🔍 Usuario en contexto: {user}")
+        print(f"🔍 ¿Es anónimo?: {user.is_anonymous}")
+        print(f"🔍 ¿Está autenticado?: {user.is_authenticated}")
+        print("=" * 50)
+
+        # IMPORTANTE: Con JWT, el middleware ya debería haber
+        # autenticado al usuario si el token es válido
+        if user and user.is_authenticated:
             return user
         return None
 

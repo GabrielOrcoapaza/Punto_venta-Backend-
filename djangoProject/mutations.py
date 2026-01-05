@@ -2,8 +2,10 @@ from django.utils import timezone
 from decimal import Decimal
 
 import graphene
+import graphql_jwt
+
 from django.contrib.auth.models import User
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, get_user_model
 from django.contrib.auth.forms import UserCreationForm
 from django.db import transaction, IntegrityError
 from django.contrib.auth.tokens import default_token_generator
@@ -22,6 +24,18 @@ from .types import (
     ClientSupplierType, UpdateClientSupplierInput, UpdateProductInput, CreateSaleInput, SaleType, OpenCashInput,
     CashType, CloseCashInput, CashSummaryType, MethodTotal, CreateExpensePaymentInput, PaymentType
 )
+from django.contrib.auth import get_user_model
+from .types import UserType
+
+User = get_user_model()
+
+
+class ObtainJSONWebToken(graphql_jwt.ObtainJSONWebToken):
+    user = graphene.Field(UserType)
+
+    @classmethod
+    def resolve(cls, root, info, **kwargs):
+        return cls(user=info.context.user)
 
 
 class EmployeeMutation(graphene.ObjectType):
@@ -112,7 +126,7 @@ class LoginUser(graphene.Mutation):
         # Hacer login (esto crea la sesión de Django)
         login(info.context, user)
 
-        print(f"✅ Usuario {user.username} autenticado. Session key: {info.context.session.session_key}")
+        print(f"Usuario {user.username} autenticado. Session key: {info.context.session.session_key}")
 
         return LoginUserPayload(
             success=True,
@@ -438,31 +452,31 @@ class OpenCash(graphene.Mutation):
         user = info.context.user
 
         # DEBUG
-        print(f"🔍 OpenCash - Usuario: {user}")
-        print(f"🔍 OpenCash - Autenticado: {user.is_authenticated}")
+        print(f"OpenCash - Usuario: {user}")
+        print(f"OpenCash - Autenticado: {user.is_authenticated}")
 
         if not user.is_authenticated:
-            print("❌ Usuario NO autenticado en OpenCash")
+            print("Usuario NO autenticado en OpenCash")
             return OpenCash(
                 cash=None,
                 success=False,
                 errors=[ErrorType(messages=['Debe iniciar sesión para abrir una caja'])]
             )
 
-        print(f"✅ Usuario autenticado, continuando...")
+        print(f"Usuario autenticado, continuando...")
 
         try:
             subsidiary = Subsidiary.objects.get(id=input.subsidiary_id)
-            print(f"✅ Subsidiary encontrada: {subsidiary}")
+            print(f"Subsidiary encontrada: {subsidiary}")
         except Subsidiary.DoesNotExist:
-            print(f"❌ Subsidiary {input.subsidiary_id} no encontrada")
+            print(f"Subsidiary {input.subsidiary_id} no encontrada")
             return OpenCash(
                 cash=None,
                 success=False,
                 errors=[ErrorType(messages=['Sucursal no encontrada'])]
             )
         except Exception as e:
-            print(f"❌ Error buscando subsidiary: {str(e)}")
+            print(f"Error buscando subsidiary: {str(e)}")
             return OpenCash(
                 cash=None,
                 success=False,
@@ -470,10 +484,10 @@ class OpenCash(graphene.Mutation):
             )
 
         exists_open = Cash.objects.filter(subsidiary=subsidiary, status='A').exists()
-        print(f"🔍 ¿Existe caja abierta?: {exists_open}")
+        print(f"¿Existe caja abierta?: {exists_open}")
 
         if exists_open:
-            print("❌ Ya existe una caja abierta")
+            print("Ya existe una caja abierta")
             return OpenCash(
                 cash=None,
                 success=False,
@@ -481,7 +495,7 @@ class OpenCash(graphene.Mutation):
             )
 
         try:
-            print(f"🔍 Creando caja...")
+            print(f"Creando caja...")
 
             # USAR CAMELCASE como está definido en el modelo
             cash = Cash.objects.create(
@@ -493,12 +507,12 @@ class OpenCash(graphene.Mutation):
                 dateOpen=timezone.now(),  # ⬅️ camelCase
             )
 
-            print(f"✅ Caja {cash.id} creada exitosamente")
-            print(f"✅ Detalles: id={cash.id}, status={cash.status}, amount={cash.initialAmount}")
+            print(f"Caja {cash.id} creada exitosamente")
+            print(f"Detalles: id={cash.id}, status={cash.status}, amount={cash.initialAmount}")
             return OpenCash(cash=cash, success=True, errors=[])
 
         except Exception as e:
-            print(f"❌ Error creando caja: {str(e)}")
+            print(f"Error creando caja: {str(e)}")
             import traceback
             traceback.print_exc()
             return OpenCash(
@@ -600,6 +614,9 @@ class AuthMutation(graphene.ObjectType):
     open_cash = OpenCash.Field()
     close_cash = CloseCash.Field()
     create_expense_payment = CreateExpensePayment.Field()
+    token_auth = ObtainJSONWebToken.Field()
+    verify_token = graphql_jwt.Verify.Field()
+    refresh_token = graphql_jwt.Refresh.Field()
 
 
 class Mutation(EmployeeMutation, AuthMutation, graphene.ObjectType):
