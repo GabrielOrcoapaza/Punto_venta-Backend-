@@ -24,9 +24,9 @@ class AuthQuery(graphene.ObjectType):
 
         # Debug
         print("=" * 50)
-        print(f"🔍 Usuario en contexto: {user}")
-        print(f"🔍 ¿Es anónimo?: {user.is_anonymous}")
-        print(f"🔍 ¿Está autenticado?: {user.is_authenticated}")
+        print(f"Usuario en contexto: {user}")
+        print(f"¿Es anónimo?: {user.is_anonymous}")
+        print(f"¿Está autenticado?: {user.is_authenticated}")
         print("=" * 50)
 
         # IMPORTANTE: Con JWT, el middleware ya debería haber
