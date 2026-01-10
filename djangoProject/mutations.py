@@ -86,9 +86,6 @@ class RegisterUser(graphene.Mutation):
                     last_name=input.last_name or ''
                 )
 
-                # Hacer login automático (esto crea la sesión)
-                login(info.context, user)
-
                 return RegisterUserPayload(
                     success=True,
                     user=user,
