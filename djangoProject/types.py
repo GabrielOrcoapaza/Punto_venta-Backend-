@@ -211,6 +211,18 @@ class CreatePurchaseInput(graphene.InputObjectType):
     date = graphene.DateTime()
 
 
+class UpdatePurchaseInput(graphene.InputObjectType):
+    productId = graphene.ID()
+    providerId = graphene.ID()
+    quantity = graphene.Int()
+    price = graphene.Decimal()
+    subtotal = graphene.Decimal()
+    total = graphene.Decimal()
+    typeReceipt = graphene.String()
+    typePay = graphene.String()
+    date = graphene.DateTime()
+
+
 class CreateClientSupplierInput(graphene.InputObjectType):
     name = graphene.String(required=True)
     address = graphene.String(required=False)

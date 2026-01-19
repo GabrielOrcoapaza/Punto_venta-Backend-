@@ -22,7 +22,7 @@ from .types import (
     RegisterUserPayload, LoginUserPayload, LogoutUserPayload,
     AuthErrorType, CreateProductInput, ProductType, CreatePurchaseInput, PurchaseType, CreateClientSupplierInput,
     ClientSupplierType, UpdateClientSupplierInput, UpdateProductInput, CreateSaleInput, SaleType, OpenCashInput,
-    CashType, CloseCashInput, CashSummaryType, MethodTotal, CreateExpensePaymentInput, PaymentType
+    CashType, CloseCashInput, CashSummaryType, MethodTotal, CreateExpensePaymentInput, PaymentType, UpdatePurchaseInput
 )
 from django.contrib.auth import get_user_model
 from .types import UserType
@@ -373,6 +373,59 @@ class CreatePurchase(graphene.Mutation):
             return CreatePurchase(purchase=None, success=False, errors=[AuthErrorType(message=str(e))])
 
 
+class UpdatePurchase(graphene.Mutation):
+    class Arguments:
+        id = graphene.ID(required=True)
+        input = UpdatePurchaseInput(required=True)
+
+    purchase = graphene.Field(PurchaseType)
+    success = graphene.Boolean()
+    errors = graphene.List(AuthErrorType)
+
+    def mutate(self, info, id, input):
+        try:
+            try:
+                purchase = Purchase.objects.get(pk=id)
+            except Purchase.DoesNotExist:
+                return UpdatePurchase(
+                    purchase=None,
+                    success=False,
+                    errors=[AuthErrorType(message=f"Compra '{id}' no encontrada")]
+                )
+
+            if 'productId' in input and input.productId is not None:
+                try:
+                    product = Product.objects.get(id=input.productId)
+                    purchase.product = product
+                except Product.DoesNotExist:
+                    return UpdatePurchase(
+                        purchase=None,
+                        success=False,
+                        errors=[AuthErrorType(message=f"Producto'{product}' no encontrado")]
+                    )
+
+            if 'providerId' in input and input.providerId is not None:
+                try:
+                    provider = ClientSupplier.objects.get(id=input.providerId)
+                    purchase.provider = provider
+                except ClientSupplier.DoesNotExist:
+                    return UpdatePurchase(
+                        purchase=None,
+                        success=False,
+                        errors=[AuthErrorType(message=f"Proveedor '{provider}' no encontrado")]
+                    )
+
+            for field in ['quantity', 'price', 'subtotal', 'total', 'typeReceipt', 'typePay', 'date']:
+                if field in input and getattr(input, field) is not None:
+                    setattr(purchase, field, getattr(input, field))
+
+            purchase.save()
+            return UpdatePurchase(purchase=purchase, success=True, errors=None)
+
+        except Exception as e:
+            return UpdatePurchase(purchase=None, success=False, errors=[AuthErrorType(message=str(e))])
+
+
 class CreateClientSupplier(graphene.Mutation):
     class Arguments:
         input = CreateClientSupplierInput(required=True)
@@ -605,6 +658,7 @@ class AuthMutation(graphene.ObjectType):
     create_product = CreateProduct.Field()
     update_product = UpdateProduct.Field()
     create_purchase = CreatePurchase.Field()
+    updatePurchase = UpdatePurchase.Field()
     create_sale = CreateSale.Field()
     create_client_supplier = CreateClientSupplier.Field()
     update_client_supplier = UpdateClientSupplier.Field()
