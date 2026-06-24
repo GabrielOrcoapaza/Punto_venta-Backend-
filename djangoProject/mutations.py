@@ -14,15 +14,15 @@ from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from graphene_django.types import ErrorType
 
-from apps.hrmn.models import ClientSupplier, Subsidiary, Employee
+from apps.hrmn.models import Person, Subsidiary, Users
 from apps.products.models import Product
-from apps.sales.models import Purchase, Sales, DetailSales, Cash, Payment
+from apps.operations.models import Operation, OperationDetail, Payment
 from .types import (
     RegisterUserInput, LoginUserInput,
     RegisterUserPayload, LoginUserPayload, LogoutUserPayload,
     AuthErrorType, CreateProductInput, ProductType, CreatePurchaseInput, PurchaseType, CreateClientSupplierInput,
     ClientSupplierType, UpdateClientSupplierInput, UpdateProductInput, CreateSaleInput, SaleType, OpenCashInput,
-    CashType, CloseCashInput, CashSummaryType, MethodTotal, CreateExpensePaymentInput, PaymentType, UpdatePurchaseInput
+    CloseCashInput, CashSummaryType, MethodTotal, CreateExpensePaymentInput, PaymentType, UpdatePurchaseInput
 )
 from django.contrib.auth import get_user_model
 from .types import UserType
@@ -248,8 +248,8 @@ class CreateSale(graphene.Mutation):
             provider = None
             if input.providerId:
                 try:
-                    provider = ClientSupplier.objects.get(id=input.providerId)
-                except ClientSupplier.DoesNotExist:
+                    provider = Person.objects.get(id=input.providerId)
+                except Person.DoesNotExist:
                     return CreateSale(
                         sale=None,
                         success=False,
@@ -297,7 +297,7 @@ class CreateSale(graphene.Mutation):
                 total_sale += Decimal(str(detail_input.total))
 
                 # Preparar objeto DetailSales (aún no guardado)
-                detail_obj = DetailSales(
+                detail_obj = OperationDetail(
                     product=product,
                     quantity=detail_input.quantity,
                     price=detail_input.price,
@@ -308,7 +308,7 @@ class CreateSale(graphene.Mutation):
                 detail_objects.append(detail_obj)
 
             # Crear la venta (Sales) - UNA SOLA VENTA
-            sale = Sales.objects.create(
+            sale = Operation.objects.create(
                 date_creation=input.date if input.date else timezone.now(),
                 employee_creation=employee,
                 type_receipt=input.typeReceipt,
@@ -358,7 +358,7 @@ class CreatePurchase(graphene.Mutation):
                     success=False,
                     errors=[AuthErrorType(message=f"Producto '{input.productId}' no encontrado")]
                 )
-            purchase = Purchase.objects.create(
+            purchase = Operation.objects.create(
                 product=product,
                 price=input.price,
                 quantity=input.quantity,
@@ -385,8 +385,8 @@ class UpdatePurchase(graphene.Mutation):
     def mutate(self, info, id, input):
         try:
             try:
-                purchase = Purchase.objects.get(pk=id)
-            except Purchase.DoesNotExist:
+                purchase = Operation.objects.get(pk=id)
+            except Operation.DoesNotExist:
                 return UpdatePurchase(
                     purchase=None,
                     success=False,
@@ -406,9 +406,9 @@ class UpdatePurchase(graphene.Mutation):
 
             if 'providerId' in input and input.providerId is not None:
                 try:
-                    provider = ClientSupplier.objects.get(id=input.providerId)
+                    provider = Person.objects.get(id=input.providerId)
                     purchase.provider = provider
-                except ClientSupplier.DoesNotExist:
+                except Person.DoesNotExist:
                     return UpdatePurchase(
                         purchase=None,
                         success=False,
@@ -435,15 +435,17 @@ class CreateClientSupplier(graphene.Mutation):
     errors = graphene.List(AuthErrorType)
 
     def mutate(self, info, input):
+        document_type_map = {'D': 'DNI', 'R': 'RUC', 'O': 'O'}
+        type_map = {'C': 'C', 'E': 'S'}
         try:
-            clientSupplier = ClientSupplier.objects.create(
+            clientSupplier = Person.objects.create(
                 name=input.name,
                 address=input.address,
                 phone=input.phone,
-                mail=input.mail,
-                nDocument=input.nDocument,
-                typeDocument=input.typeDocument,
-                typePerson=input.typePerson
+                email=input.mail,
+                document_number=str(input.nDocument),
+                document_type=document_type_map.get(input.typeDocument, input.typeDocument),
+                type=type_map.get(input.typePerson, input.typePerson),
             )
             return CreateClientSupplier(clientSupplier=clientSupplier, success=True, errors=None)
         except Exception as e:
@@ -460,22 +462,23 @@ class UpdateClientSupplier(graphene.Mutation):
     errors = graphene.List(AuthErrorType)
 
     def mutate(self, info, id, input):
+        document_type_map = {'D': 'DNI', 'R': 'RUC', 'O': 'O'}
+        type_map = {'C': 'C', 'E': 'S'}
         try:
-            clientSupplier = ClientSupplier.objects.get(pk=id)
+            clientSupplier = Person.objects.get(pk=id)
 
-            # Actualizar los camposn
             clientSupplier.name = input.name
             clientSupplier.address = input.address
             clientSupplier.phone = input.phone
-            clientSupplier.mail = input.mail
-            clientSupplier.nDocument = input.nDocument
-            clientSupplier.typeDocument = input.typeDocument
-            clientSupplier.typePerson = input.typePerson
+            clientSupplier.email = input.mail
+            clientSupplier.document_number = str(input.nDocument)
+            clientSupplier.document_type = document_type_map.get(input.typeDocument, input.typeDocument)
+            clientSupplier.type = type_map.get(input.typePerson, input.typePerson)
 
             clientSupplier.save()
 
             return UpdateClientSupplier(clientSupplier=clientSupplier, success=True, errors=None)
-        except ClientSupplier.DoesNotExist:
+        except Person.DoesNotExist:
             return UpdateClientSupplier(
                 clientSupplier=None,
                 success=False,
@@ -489,168 +492,6 @@ class UpdateClientSupplier(graphene.Mutation):
             )
 
 
-class OpenCash(graphene.Mutation):
-    class Arguments:
-        input = OpenCashInput(required=True)
-
-    cash = graphene.Field(CashType)
-    success = graphene.Boolean()
-    errors = graphene.List(ErrorType)
-
-    @staticmethod
-    def mutate(root, info, input):
-        user = info.context.user
-
-        # DEBUG
-        print(f"OpenCash - Usuario: {user}")
-        print(f"OpenCash - Autenticado: {user.is_authenticated}")
-
-        if not user.is_authenticated:
-            print("Usuario NO autenticado en OpenCash")
-            return OpenCash(
-                cash=None,
-                success=False,
-                errors=[ErrorType(messages=['Debe iniciar sesión para abrir una caja'])]
-            )
-
-        print(f"Usuario autenticado, continuando...")
-
-        try:
-            subsidiary = Subsidiary.objects.get(id=input.subsidiary_id)
-            print(f"Subsidiary encontrada: {subsidiary}")
-        except Subsidiary.DoesNotExist:
-            print(f"Subsidiary {input.subsidiary_id} no encontrada")
-            return OpenCash(
-                cash=None,
-                success=False,
-                errors=[ErrorType(messages=['Sucursal no encontrada'])]
-            )
-        except Exception as e:
-            print(f"Error buscando subsidiary: {str(e)}")
-            return OpenCash(
-                cash=None,
-                success=False,
-                errors=[ErrorType(messages=[f'Error: {str(e)}'])]
-            )
-
-        exists_open = Cash.objects.filter(subsidiary=subsidiary, status='A').exists()
-        print(f"¿Existe caja abierta?: {exists_open}")
-
-        if exists_open:
-            print("Ya existe una caja abierta")
-            return OpenCash(
-                cash=None,
-                success=False,
-                errors=[ErrorType(messages=['Ya existe una caja abierta en esta sucursal'])]
-            )
-
-        try:
-            print(f"Creando caja...")
-
-            # USAR CAMELCASE como está definido en el modelo
-            cash = Cash.objects.create(
-                subsidiary=subsidiary,
-                name=getattr(input, 'name', None) or 'Caja',
-                user=user,
-                status='A',
-                initialAmount=Decimal(str(input.initial_amount)),  # ⬅️ camelCase
-                dateOpen=timezone.now(),  # ⬅️ camelCase
-            )
-
-            print(f"Caja {cash.id} creada exitosamente")
-            print(f"Detalles: id={cash.id}, status={cash.status}, amount={cash.initialAmount}")
-            return OpenCash(cash=cash, success=True, errors=[])
-
-        except Exception as e:
-            print(f"Error creando caja: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return OpenCash(
-                cash=None,
-                success=False,
-                errors=[ErrorType(messages=[f'Error al crear caja: {str(e)}'])]
-            )
-
-
-class CloseCash(graphene.Mutation):
-    class Arguments:
-        input = CloseCashInput(required=True)
-    cash = graphene.Field(CashType)
-    summary = graphene.Field(CashSummaryType)
-    success = graphene.Boolean()
-    errors = graphene.List(ErrorType)
-
-    @staticmethod
-    def mutate(root, info, input):
-        try:
-            cash = Cash.objects.get(id=input.cash_id)
-        except Cash.DoesNotExist:
-            return CloseCash(cash=None, summary=None, success=False, errors=[ErrorType(messages=['Caja no encontrada'])])
-
-        if cash.status != 'A':
-            return CloseCash(cash=None, summary=None, success=False, errors=[ErrorType(messages=['La caja no está abierta'])])
-
-        user = info.context.user
-
-        payments_qs = Payment.objects.filter(cash=cash, status='PAID')
-        by_method_qs = payments_qs.values('payment_method').annotate(total=Sum('paid_amount'))
-        by_method = [
-            MethodTotal(method=row['payment_method'], total=row['total'] or Decimal('0.00'))
-        for row in by_method_qs
-        ]
-        total_expected = payments_qs.aggregate(t=Sum('paid_amount'))['t'] or Decimal('0.00')
-        total_counted = Decimal(str(input.closing_amount))
-        difference = total_counted - total_expected
-
-        cash.closing_amount = total_counted
-        cash.difference = difference
-        cash.status = 'C'
-        cash.date_close = timezone.now()
-        cash.user = user
-        cash.save()
-
-        summary = CashSummaryType(
-            by_method=by_method,
-            total_expected=total_expected,
-            total_counted=total_counted,
-            difference=difference,
-        )
-        return CloseCash(cash=cash, summary=summary, success=True, errors=[])
-
-
-class CreateExpensePayment(graphene.Mutation):
-    class Arguments:
-        input = CreateExpensePaymentInput(required=True)
-    payment = graphene.Field(graphene.NonNull(graphene.JSONString))
-    success = graphene.Boolean()
-    errors = graphene.List(ErrorType)
-
-    @staticmethod
-    def mutate(root, info, input):
-        user = info.context.user
-        try:
-            subsidiary = Subsidiary.objects.get(id=input.subsidiary_id)
-            cash = Cash.objects.get(id=input.cash_id)
-        except Subsidiary.DoesNotExist:
-            return CreateExpensePayment(payment=None, success=False, errors=[ErrorType(messages=['Sucursal no encontrada'])])
-        except Cash.DoesNotExist:
-            return CreateExpensePayment(payment=None, success=False, errors=[ErrorType(messages=['Caja no encontrada'])])
-
-        payment = Payment.objects.create(
-            subsidiary=subsidiary,
-            cash=cash,
-            payment_type='EXPENSE',
-            payment_method=input.payment_method,
-            status='PAID',
-            payment_date=input.payment_date or timezone.now(),
-            total_amount=Decimal(str(input.total_amount)),
-            paid_amount=Decimal(str(input.paid_amount)),
-            notes=input.notes or '',
-            user=user,
-        )
-        return CreateExpensePayment(payment={'id': str(payment.id)}, success=True, errors=[])
-
-
 class AuthMutation(graphene.ObjectType):
     register_user = RegisterUser.Field()
     login_user = LoginUser.Field()
@@ -662,9 +503,7 @@ class AuthMutation(graphene.ObjectType):
     create_sale = CreateSale.Field()
     create_client_supplier = CreateClientSupplier.Field()
     update_client_supplier = UpdateClientSupplier.Field()
-    open_cash = OpenCash.Field()
-    close_cash = CloseCash.Field()
-    create_expense_payment = CreateExpensePayment.Field()
+
     token_auth = ObtainJSONWebToken.Field()
     verify_token = graphql_jwt.Verify.Field()
     refresh_token = graphql_jwt.Refresh.Field()

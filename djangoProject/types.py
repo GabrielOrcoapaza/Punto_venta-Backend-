@@ -6,8 +6,8 @@ from django.contrib.auth.forms import UserCreationForm
 from django.db import transaction
 
 from apps.products.models import Product
-from apps.hrmn.models import Subsidiary, ClientSupplier
-from apps.sales.models import Purchase, Sales, DetailSales, Cash, Payment
+from apps.hrmn.models import Subsidiary, Person
+from apps.operations.models import Operation, OperationDetail, Payment
 
 
 class SubsidiaryType(DjangoObjectType):
@@ -69,7 +69,7 @@ class DetailSaleType(DjangoObjectType):
     """Type para el detalle de venta (DetailSales)"""
 
     class Meta:
-        model = DetailSales
+        model = OperationDetail
         fields = '__all__'
 
 
@@ -77,7 +77,7 @@ class SaleType(DjangoObjectType):
     """Type para la venta (Sales)"""
 
     class Meta:
-        model = Sales
+        model = Operation
         fields = '__all__'
 
     # ✅ Usa referencia directa - DetailSaleType ya está definido arriba
@@ -90,13 +90,13 @@ class SaleType(DjangoObjectType):
 
 class PurchaseType(DjangoObjectType):
     class Meta:
-        model = Purchase
+        model = Operation
         fields = '__all__'
 
 
 class ClientSupplierType(DjangoObjectType):
     class Meta:
-        model = ClientSupplier
+        model = Person
         fields = '__all__'
 
 
@@ -114,22 +114,6 @@ class CashSummaryType(graphene.ObjectType):
     total_expected = graphene.Decimal()
     total_counted = graphene.Decimal()
     difference = graphene.Decimal()
-
-
-class CashType(DjangoObjectType):
-    class Meta:
-        model = Cash
-        fields = ('id',
-                  'name',
-                  'user',
-                  'subsidiary',
-                  'status',
-                  'initialAmount',
-                  'closingAmount',
-                  'difference',
-                  'dateOpen',
-                  'dateClose',
-                  'totalSales')
 
 
 class PaymentType(DjangoObjectType):

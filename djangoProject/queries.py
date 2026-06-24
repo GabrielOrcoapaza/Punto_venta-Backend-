@@ -4,10 +4,10 @@ from graphene_django import DjangoObjectType
 from django.contrib.auth.models import User
 from django.contrib.auth import get_user
 
-from apps.hrmn.models import ClientSupplier, Subsidiary
+from apps.hrmn.models import Person, Subsidiary
 from apps.products.models import Product
-from apps.sales.models import Purchase, Sales, Cash, Payment
-from .types import UserType, ProductType, PurchaseType, ClientSupplierType, SaleType, CashType, PaymentType, \
+from apps.operations.models import Operation, Payment
+from .types import UserType, ProductType, PurchaseType, ClientSupplierType, SaleType, PaymentType, \
     MethodTotal, CashSummaryType
 
 
@@ -52,10 +52,10 @@ class SaleQuery(graphene.ObjectType):
     sale = graphene.Field(SaleType, id=graphene.ID(required=True))
 
     def resolve_sales(self, info):
-        return Sales.objects.all()
+        return Operation.objects.all()
 
     def resolve_sale(self, info, id):
-        return Sales.objects.get(pk=id)
+        return Operation.objects.get(pk=id)
 
 
 class PurchaseQuery(graphene.ObjectType):
@@ -63,10 +63,10 @@ class PurchaseQuery(graphene.ObjectType):
     purchase = graphene.Field(PurchaseType, id=graphene.ID(required=True))
 
     def resolve_purchases(self, info):
-        return Purchase.objects.all()
+        return Operation.objects.all()
 
     def resolve_purchase(self, info, id):
-        return Purchase.objects.get(pk=id)
+        return Operation.objects.get(pk=id)
 
 
 class ClientSupplierQuery(graphene.ObjectType):
@@ -74,26 +74,10 @@ class ClientSupplierQuery(graphene.ObjectType):
     clientSupplier = graphene.Field(ClientSupplierType, id=graphene.ID(required=True))
 
     def resolve_clientSuppliers(self, info):
-        return ClientSupplier.objects.all()
+        return Person.objects.all()
 
     def resolve_clientSupplier(self, info, id):
-        return ClientSupplier.objects.get(pk=id)
-
-
-class CashQuery(graphene.ObjectType):
-    cashes = graphene.List(CashType)
-    cash = graphene.Field(CashType, id=graphene.ID(required=True))
-    currentCash = graphene.Field(CashType, subsidiaryId=graphene.ID(required=True))
-
-    def resolve_cashes(self, info):
-        return Cash.objects.all()
-
-    def resolve_cash(self, info, id):
-        return Cash.objects.get(pk=id)
-
-    def resolve_currentCash(self, info, subsidiaryId):
-        subsidiary = Subsidiary.objects.get(pk=subsidiaryId)
-        return Cash.objects.filter(subsidiary=subsidiary, status='A').last()
+        return Person.objects.get(pk=id)
 
 
 class PaymentQuery(graphene.ObjectType):
@@ -111,21 +95,6 @@ class PaymentQuery(graphene.ObjectType):
         return Payment.objects.filter(cash_id=cashId).order_by('payment_date')
 
 
-class CashSummaryQuery(graphene.ObjectType):
-    cashSummary = graphene.Field(CashSummaryType, cashId=graphene.ID(required=True))
-
-    def resolve_cashSummary(self, info, cashId):
-        cash = Cash.objects.get(pk=cashId)
-        qs = Payment.objects.filter(cash=cash, status='PAID')
-        by_method_qs = qs.values('payment_method').annotate(total=Sum('paid_amount'))
-        by_method = [MethodTotal(method=x['payment_method'], total=x['total'] or 0) for x in by_method_qs]
-        total_expected = qs.aggregate(t=Sum('paid_amount'))['t'] or 0
-        total_counted = cash.closing_amount or 0
-        difference = total_counted - total_expected
-        return CashSummaryType(by_method=by_method, total_expected=total_expected, total_counted=total_counted,
-                               difference=difference)
-
-
-class Query(EmployeeQuery, AuthQuery, ProductQuery, SaleQuery, PurchaseQuery, ClientSupplierQuery, CashQuery,
-            PaymentQuery, CashSummaryQuery, graphene.ObjectType):
+class Query(EmployeeQuery, AuthQuery, ProductQuery, SaleQuery, PurchaseQuery, ClientSupplierQuery,
+            PaymentQuery, graphene.ObjectType):
     pass
